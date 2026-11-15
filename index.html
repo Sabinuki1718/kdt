@@ -688,8 +688,10 @@ body.lp .di-trait { font-size: 10px; } body.lp .di-trait b { font-size: 12px; }
 .seg.big button.sel { background: linear-gradient(#ecd07e, #b8892a); color: #1b1307; }
 /* モード選択 */
 .mode-body { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-content: center; }
-.mode-sub { display: grid; grid-template-rows: 1fr 1fr 1fr; gap: 12px; }
-#modeOnline { background: radial-gradient(ellipse at 85% 30%, #1d2a33, #161412 70%); }
+.mode-body { grid-template-columns: minmax(0, 1.27fr) minmax(0, 1fr); align-content: stretch; max-width: 1000px; width: 100%; margin: 0 auto; }
+.mode-sub { display: grid; grid-template-rows: 1fr 1fr; gap: 16px; }
+.mode-vs { display: grid; grid-template-rows: 1fr 1fr; gap: 16px; max-width: 1000px; width: 100%; margin: 0 auto; }
+.mode-vs[hidden], .mode-body[hidden] { display: none; }
 .on-panel { max-width: 640px; width: 100%; margin: 0 auto; background: rgba(16,14,12,.92); border: 1px solid var(--gray); padding: 26px 30px; display: flex; flex-direction: column; gap: 12px; }
 .on-panel h3 { margin: 0; font-size: 16px; color: var(--gold-hi); }
 #netKey { font: inherit; font-size: 24px; text-align: center; padding: 12px; background: #0d0b09; color: #f2eee6; border: 1px solid var(--gold-hi); outline: none; width: 100%; box-sizing: border-box; }
@@ -705,11 +707,11 @@ body.lp .on-panel { padding: 14px 16px; gap: 8px; } body.lp #netKey { font-size:
 .mode-card:hover { border-color: #6a655c; }
 .mode-card.main { border-color: var(--gold-hi); box-shadow: 0 0 0 1px var(--gold-hi), 0 0 26px rgba(241,210,127,.18); background: radial-gradient(ellipse at 80% 20%, #2a2215, #161412 70%); }
 /* モード画面の画像：CPU対戦＝パラワンvsテイオウ、チュートリアル＝平田博士、図鑑＝虫の一覧 */
-#modeCpu { background: linear-gradient(0deg, rgba(10,8,6,.94) 6%, rgba(10,8,6,.4) 48%, rgba(10,8,6,.1)), url(img/mode_cpu.webp) center 35% / cover, #161412; }
+#modeBattle, #modeCpu, #modeOnline { background: linear-gradient(0deg, rgba(0,0,0,.85), rgba(0,0,0,.15) 55%, rgba(0,0,0,0)), url(img/mode_cpu.webp) center 35% / cover, #161412; }
 #modeTut { background: linear-gradient(90deg, rgba(16,14,12,.96) 40%, rgba(16,14,12,.15) 78%), url(img/hakase_full.webp) right 6% top 8% / auto 210% no-repeat, #161412; }
 #modeZukan { background: linear-gradient(90deg, rgba(16,14,12,.96) 38%, rgba(16,14,12,.35)), url(img/mode_zukan.webp) right top / 62% auto no-repeat, #161412; }
 .mode-card .mc-t, .mode-card .mc-d, .mode-card .mc-k { text-shadow: 0 2px 6px #000; }
-.mc-k { font-family: var(--f-latin); font-style: italic; font-size: 14px; letter-spacing: .25em; color: var(--gray-t); }
+.mc-k { font-family: var(--f-latin); font-style: italic; font-size: 14px; letter-spacing: .25em; color: var(--gold); }
 .mc-t { font-family: var(--f-mincho); font-weight: 800; font-size: 30px; color: #fff; }
 .mode-card.main .mc-t { color: var(--gold-hi); font-size: 40px; }
 .mc-d { font-family: var(--f-body); font-size: 14px; color: #bdb6aa; }
@@ -1023,14 +1025,17 @@ body.lp #tutHint { top: 92px; width: min(420px, 56%); padding: 5px 8px 5px 5px; 
 
   <!-- MODE SELECT -->
   <section class="gs" id="screen-mode" hidden>
-    <header class="gs-head"><h2 class="gs-title">モードを選ぶ</h2></header>
-    <div class="gs-body mode-body">
-      <button class="mode-card main" id="modeCpu" type="button"><span class="mc-k">VS CPU</span><span class="mc-t">CPU対戦</span><span class="mc-d">ヒラタを1匹選び、技を2つ装備してCPUと一騎討ち</span></button>
+    <header class="gs-head"><h2 class="gs-title" id="modeTitle">モードを選ぶ</h2></header>
+    <div class="gs-body mode-body" id="modeTop">
+      <button class="mode-card main" id="modeBattle" type="button"><span class="mc-k">BATTLE</span><span class="mc-t">対戦</span><span class="mc-d">CPU対戦と、合言葉で知り合いと戦う通信対戦</span></button>
       <div class="mode-sub">
         <button class="mode-card tut" id="modeTut" type="button"><span class="mc-k">TUTORIAL</span><span class="mc-t">チュートリアル</span><span class="mc-d">平田博士と学ぶ、戦いの基本と立ち回り・ルール</span></button>
-        <button class="mode-card" id="modeOnline" type="button"><span class="mc-k">ONLINE</span><span class="mc-t">通信対戦</span><span class="mc-d">合言葉で部屋に入り、知り合いと対戦</span></button>
         <button class="mode-card" id="modeZukan" type="button"><span class="mc-k">ARCHIVE</span><span class="mc-t">図鑑</span><span class="mc-d">ヒラタ図鑑（全種の解説・見比べ）と技図鑑</span></button>
       </div>
+    </div>
+    <div class="gs-body mode-vs" id="modeVs" hidden>
+      <button class="mode-card main" id="modeCpu" type="button"><span class="mc-k">VS CPU</span><span class="mc-t">CPU対戦</span><span class="mc-d">ヒラタを1匹選び、技を2つ装備してCPUと一騎討ち</span></button>
+      <button class="mode-card main" id="modeOnline" type="button"><span class="mc-k">ONLINE</span><span class="mc-t">通信対戦</span><span class="mc-d">合言葉で部屋に入り、知り合いと一騎討ち</span></button>
     </div>
     <footer class="gs-foot"><button class="gbtn" id="modeBack" type="button">戻る</button><span></span></footer>
   </section>
@@ -6159,9 +6164,9 @@ function mashGame(acts) {
       if (el2 >= C.mashTime) {
         done = true; mashTap = null;
         if (online) {   // 連打数を送り、サーバーが決めた勝者を出す
-          net.send({ t: 'taps', turn: st.turn, n: taps });
+          net.send({ t: 'taps', turn: st.turn, n: taps }); netWaitSince = performance.now();
           net.wait('res').then(res => {
-            mashRes = res; mashAbort = null;
+            mashRes = res; mashAbort = null; netWaitSince = -1;
             if (!res) { el.hidden = true; resolve(-1); return; }
             const w = res.mw.winner, why = { mash: '', kiai: '連打は互角 → 気合の多い側', power: '連打・気合とも互角 → 総戦闘力の高い側', random: 'すべて互角 → 抽選' }[res.mw.by];
             if (res.taps) { cTaps = res.taps[1]; c = cTaps * w1; p = taps * w0; final = true; draw(); }
@@ -7076,6 +7081,7 @@ function showScreen(id) {
   if (curScreen === 'tutorial' && id !== 'tutorial') { tutModels.clear(true); beetles.forEach(b => b.root.visible = true); if (id) clearShot(); }
   curScreen = id; document.body.dataset.screen = id || 'battle';
   if (id !== 'result') camera.clearViewOffset();
+  if (id === 'mode') renderMode();
   if (id === 'title') BGM.play('title');                                          // タイトル画面だけ専用曲
   else if (['mode', 'online', 'fighter', 'moves', 'cpu', 'zukan', 'tutorial'].includes(id)) BGM.play('world');
 }
@@ -7083,6 +7089,53 @@ function mountViewer(slot) { $(slot).appendChild($('#vbox')); if (slot !== '#zVi
 function statRow(k, v, max, label) { return `<div class="stat"><span>${k}</span><span class="b"><i style="width:${Math.min(100, v / max * 100)}%"></i></span><span class="v">${label ?? v}</span></div>`; }
 /* 図鑑用：全種を同じ縮尺・真上から撮影して標本写真にする */
 const thumbs = {};
+/* モード選択（Unity 版と同じ構成）：「対戦」→「CPU対戦／通信対戦」の2段。札の背景は2匹を対戦の間合いで並べて撮った絵 */
+let modeVs = false;
+const pairShots = {};
+function renderMode() {
+  $('#modeTop').hidden = modeVs; $('#modeVs').hidden = !modeVs;
+  $('#modeTitle').textContent = modeVs ? '対戦の種類を選ぶ' : 'モードを選ぶ';
+  const want = modeVs ? [['#modeCpu', 'palawan', 'teiou', false], ['#modeOnline', 'hondo', 'aceh', false]] : [['#modeBattle', 'palawan', 'teiou', true]];
+  for (const [sel, a, b, top] of want) {
+    const key = a + '|' + b + '|' + top, el = $(sel);
+    const put = () => { el.style.background = `linear-gradient(0deg, rgba(0,0,0,.85), rgba(0,0,0,.15) 55%, rgba(0,0,0,0)), url(${pairShots[key]}) center ${top ? '30%' : '50%'} / cover, #0b0806`; };
+    if (pairShots[key]) { put(); continue; }
+    preloadBeetles([a, b]).then(() => { if (!pairShots[key] && GLB_READY[a] && GLB_READY[b]) pairShots[key] = makePairShot(a, b, top); if (pairShots[key]) put(); });
+  }
+}
+function makePairShot(id0, id1, top) {
+  const W = top ? 1000 : 1600, H = top ? 1000 : 420;
+  const ts = new THREE.Scene(); ts.background = new THREE.Color(0x0b0806); ts.environment = scene.environment;
+  ts.add(new THREE.HemisphereLight(0xfff2dc, 0x3a2614, 0.6));
+  const L = new THREE.DirectionalLight(0xfff4e0, 2.0); L.position.set(-3, 10, -4); L.castShadow = true;
+  L.shadow.mapSize.set(2048, 2048); Object.assign(L.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 30 }); L.shadow.radius = 6; ts.add(L);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.5); fill.position.set(4, 6, 5); ts.add(fill);
+  const rimT = new THREE.DirectionalLight(0xbfd4ff, 1.4); rimT.position.set(2, 3, -6); ts.add(rimT);
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(20, 48), new THREE.MeshLambertMaterial({ color: 0x150d06 }));
+  floor.rotation.x = -Math.PI / 2; floor.position.y = -0.005; floor.receiveShadow = true; ts.add(floor);
+  const b0 = new Beetle(id0, 0, ts), b1 = new Beetle(id1, 1, ts);
+  const gap = 0.12, x0 = -(b0.reach + gap / 2), x1 = b1.reach + gap / 2, shift = -(x0 + x1) / 2;   // 対戦と同じ間合い
+  b0.baseX = x0 + shift; b1.baseX = x1 + shift;
+  for (const b of [b0, b1]) { b.t = 0; b.pose.jaw = 0.35; b.pose.crouch = 0.3; b.update(0); }
+  const S = Math.max(b0.s, b1.s), span = x1 - x0;
+  const cam = new THREE.PerspectiveCamera(22, W / H, 0.05, 200);
+  if (top) {
+    const bd = new THREE.Box3().setFromObject(b0.root).union(new THREE.Box3().setFromObject(b1.root)), sz = bd.getSize(new V3()), c = bd.getCenter(new V3()); c.y = bd.min.y;
+    const half = Math.tan(cam.fov * Math.PI / 360), h = sz.x * 1.32 / (2 * half) + sz.y, off = 0.17 * 2 * half * h;
+    cam.up.set(0, 0, -1); cam.position.set(c.x, c.y + h, c.z + off); cam.lookAt(c.x, c.y, c.z + off);   // 画面の下側へずらす＝虫は上寄りに写る（下に文字が載る）
+  } else {
+    const d = 1.3 * span + 2.35 * S;   // 2匹がちょうど横に収まる距離
+    cam.position.set(0.25 * S, 0.75 * S + 0.18 * d, d); cam.lookAt(0, 0.32 * S, 0);
+  }
+  const keep = new THREE.Vector2(); renderer.getSize(keep); const pr = renderer.getPixelRatio();
+  renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+  renderer.render(ts, cam);
+  const url = renderer.domElement.toDataURL('image/jpeg', 0.88);
+  b0.dispose(); b1.dispose();
+  renderer.setPixelRatio(pr); renderer.setSize(keep.x, keep.y, false);
+  renderer.render(scene, camera);
+  return url;
+}
 let thumbsFull = false;   // 全種の3Dモデルで撮れたか（未読込の種があれば、そろった時点で撮り直す）
 function makeThumbs() {
   const allReady = Object.keys(CH).every(id => GLB_READY[id]);
@@ -7362,16 +7415,17 @@ function openSettings() {
 }
 
 /* ---------- ボタン ---------- */
-$('#goSelect').onclick = () => showScreen('mode');
+$('#goSelect').onclick = () => { modeVs = false; showScreen('mode'); };
 $('#goSettings').onclick = openSettings;
-$('#modeCpu').onclick = openFighter;
-$('#modeZukan').onclick = () => openZukan('mode');
-$('#modeOnline').onclick = openOnline;
-$('#onBack').onclick = () => { if (netPh === 'input') showScreen('mode'); else if (online) netConfirmLeave(); else { netDispose(); netPh = 'input'; renderOnline(); } };
+$('#modeCpu').onclick = () => { modeVs = false; openFighter(); };
+$('#modeBattle').onclick = () => { modeVs = true; renderMode(); };
+$('#modeZukan').onclick = () => { modeVs = false; openZukan('mode'); };
+$('#modeOnline').onclick = () => { modeVs = false; openOnline(); };
+$('#onBack').onclick = () => { if (netPh === 'input') { modeVs = true; showScreen('mode'); } else if (online) netConfirmLeave(); else { netDispose(); netPh = 'input'; renderOnline(); } };
 $('#onJoin').onclick = () => { if (netPh === 'input') netJoin(); };
 
-$('#modeBack').onclick = () => showScreen('title');
-$('#fBack').onclick = () => { if (online) netConfirmLeave(); else showScreen('mode'); };
+$('#modeBack').onclick = () => { if (modeVs) { modeVs = false; renderMode(); } else showScreen('title'); };
+$('#fBack').onclick = () => { if (online) netConfirmLeave(); else { modeVs = true; showScreen('mode'); } };
 $('#fGo').onclick = openMoves;
 $('#mvBack').onclick = openFighter;
 $('#mGo').onclick = () => { if (setup.up && setup.down) { if (online) netPick(); else openCpu(); } };
@@ -7388,7 +7442,7 @@ $('#toTitle').onclick = () => {
 function screenKey(e) {
   if (!$('#modal').hidden) return false;
   if (curScreen === 'tutorial') { if (e.key === 'Escape') { $('#tutBack').click(); return true; } if (e.key === 'Enter' && !$('#tutStage').hidden && $('#tutChoices').hidden) { e.preventDefault(); tutNext(); return true; } return false; }
-  const map = { online: ['#onBack', '#onJoin'], mode: ['#modeBack', '#modeCpu'], fighter: ['#fBack', '#fGo'], moves: ['#mvBack', '#mGo'], cpu: ['#cBack', '#cGo'], zukan: ['#zBack', null], result: ['#toSelect', '#again'], title: [null, '#goSelect'] }[curScreen];
+  const map = { online: ['#onBack', '#onJoin'], mode: ['#modeBack', modeVs ? '#modeCpu' : '#modeBattle'], fighter: ['#fBack', '#fGo'], moves: ['#mvBack', '#mGo'], cpu: ['#cBack', '#cGo'], zukan: ['#zBack', null], result: ['#toSelect', '#again'], title: [null, '#goSelect'] }[curScreen];
   if (!map || curScreen === 'battle') return false;
   const t = e.key === 'Escape' ? map[0] : e.key === 'Enter' ? map[1] : null;
   if (!t) return false;
@@ -7657,10 +7711,12 @@ function netConfirmLeave() {
   $('#pzYes').onclick = () => { $('#modal').hidden = true; netLeave(); };
 }
 // 相手の通信待ち・再接続中の帯
+let netWaitSince = -1;   // 自分の演出・連打が終わり、相手を待ち始めた時刻
 setInterval(() => {
   const bar = $('#netBar'); if (!bar) return;
   const t = !net ? null : net.reconnecting ? '通信が途切れました。再接続しています…'
-    : peerAwayUntil > performance.now() ? `相手の通信を待っています（残り ${Math.ceil((peerAwayUntil - performance.now()) / 1000)} 秒）` : null;
+    : peerAwayUntil > performance.now() ? `相手の通信を待っています（残り ${Math.ceil((peerAwayUntil - performance.now()) / 1000)} 秒）`
+    : running && netWaitSince > 0 && performance.now() - netWaitSince > 1200 ? '相手を待っています…' : null;
   bar.hidden = !t; if (t) bar.textContent = t;
 }, 250);
 
@@ -7675,8 +7731,8 @@ function startMatchNet(picks) {
 async function runTurnNet() {
   syncDisp(); renderHUD();
   const turn = st.turn;
-  net.send({ t: 'ready', turn });
-  const tm = await net.wait('turn'); if (!tm || !running) return;
+  net.send({ t: 'ready', turn }); netWaitSince = performance.now();
+  const tm = await net.wait('turn'); netWaitSince = -1; if (!tm || !running) return;
   const goP = net.wait('go');
   if (tm.decl && tm.decl[0]) {   // 金蚉の宣告：宣言する
     const dP = playerDeclare();
