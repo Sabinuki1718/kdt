@@ -7610,9 +7610,10 @@ function renderOnline() {
   $('#onJoin').hidden = netPh !== 'input';
   if (netPh === 'input') {
     const keep = $('#netKey') ? $('#netKey').value : '';
-    b.innerHTML = `<h3>合言葉</h3><input id="netKey" type="text" maxlength="24" autocomplete="off" spellcheck="false" value="${esc(keep)}">
-      <p class="on-note">相手と同じ合言葉（4〜24文字）を入れて「部屋に入る」を押します。先に入った人は、相手が来るまで待ちます。<br><em>ふだん使っているパスワードは使わないでください。</em></p>
+    b.innerHTML = `<h3>合言葉</h3><input id="netKey" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="5桁の数字" autocomplete="off" spellcheck="false" value="${esc(keep)}">
+      <p class="on-note">相手と同じ合言葉（5桁の数字）を入れて「部屋に入る」を押します。先に入った人は、相手が来るまで待ちます。<br><em>暗証番号など、ふだん使っている番号は使わないでください。</em></p>
       <p class="on-err">${netErr ? esc(netErr) : ''}</p>`;
+    { const k = $('#netKey'); k.addEventListener('input', e => { if (e.isComposing) return; const v = k.value.normalize('NFKC').replace(/\D/g, '').slice(0, 5); if (v !== k.value) k.value = v; }); k.addEventListener('compositionend', () => { k.value = k.value.normalize('NFKC').replace(/\D/g, '').slice(0, 5); }); }   // 数字以外は入らない（全角数字は半角に）
     setTimeout(() => { const k = $('#netKey'); if (k && curScreen === 'online') k.focus(); }, 0);
     return;
   }
@@ -7626,7 +7627,7 @@ function renderOnline() {
 }
 async function netJoin() {
   const key = ($('#netKey') ? $('#netKey').value : '').normalize('NFKC').trim(), n = [...key].length;
-  if (n < 4 || n > 24) { netErr = '合言葉は4〜24文字で入れてください'; renderOnline(); return; }
+  if (!/^[0-9]{5}$/.test(key)) { netErr = '合言葉は5桁の数字で入れてください'; renderOnline(); return; }
   netDispose();
   netErr = null; netPh = 'connecting'; renderOnline();
   const nt = net = new KdtNet(C.ruleVer);
@@ -7642,7 +7643,7 @@ function netLeave() { netDispose(); st = null; buildBeetles('palawan', 'hondo');
 function netErrText(code) {
   return {
     full: 'その合言葉の部屋は、すでに2人そろっています。別の合言葉にしてください。',
-    key: '合言葉は4〜24文字で入れてください。',
+    key: '合言葉は5桁の数字で入れてください。',
     rate: '試す回数が多すぎます。1分ほど待ってからやり直してください。',
     version: 'ゲームの版がサーバーと合いません。最新版にそろえてください。',
     rules: '対戦ルールの版がサーバーと合いません。ページを再読み込みして、最新版にしてください。',
@@ -7716,7 +7717,7 @@ setInterval(() => {
   const bar = $('#netBar'); if (!bar) return;
   const t = !net ? null : net.reconnecting ? '通信が途切れました。再接続しています…'
     : peerAwayUntil > performance.now() ? `相手の通信を待っています（残り ${Math.ceil((peerAwayUntil - performance.now()) / 1000)} 秒）`
-    : running && netWaitSince > 0 && performance.now() - netWaitSince > 1200 ? '相手を待っています…' : null;
+    : running && netWaitSince > 0 && performance.now() - netWaitSince > 1200 ? '通信待機中......' : null;
   bar.hidden = !t; if (t) bar.textContent = t;
 }, 250);
 
