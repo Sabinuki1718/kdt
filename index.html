@@ -7433,8 +7433,8 @@ $('#cBack').onclick = () => { showScreen('moves'); mountViewer('#mView'); render
 $('#cRand').onclick = () => { setup.opp = 'random'; renderCpu(); };
 $('#cGo').onclick = () => { if (setup.up && setup.down) startMatch(false); else openMoves(); };
 $('#zBack').onclick = () => showScreen(zFrom);
-$('#again').onclick = () => { if (online) netRematchReq(); else startMatch(true); };
-$('#toSelect').onclick = () => { BGM.play('world'); openFighter(); };
+$('#again').onclick = () => { if (online) netRematchReq(true); else startMatch(true); };
+$('#toSelect').onclick = () => { if (online) { netRematchReq(false); return; } BGM.play('world'); openFighter(); };
 $('#toTitle').onclick = () => {
   if (online) { if (net) net.send({ t: 'rematch', yes: false }); netLeave(); return; }
   BGM.play('world'); buildBeetles('palawan', 'hondo'); clearShot(); showScreen('title'); };
@@ -7669,10 +7669,12 @@ function netEvent(m) {
       peerAwayUntil = -1;
       if (m.reason !== 'surrender') oppLeft = true;
       break;
-    case 'rematch': netRematch = { me: !!m.me, opp: !!m.opp }; renderResultNet(); break;
+    case 'rematch': netRematch = { ...netRematch, me: !!m.me, opp: !!m.opp, oppKeep: m.oppKeep }; renderResultNet(); break;
     case 'reselect':
-      netRematch = { me: false, opp: false }; oppPicked = false; netEnd = null;
-      st = null; clearShot(); camera.clearViewOffset(); BGM.play('world'); openFighter();
+      netRematch = { me: false, opp: false }; oppPicked = !!m.oppKeep; netEnd = null;
+      st = null; clearShot(); camera.clearViewOffset(); BGM.play('world');
+      if (m.keep) { netPh = 'picked'; showScreen('online'); renderOnline(); }   // 同じ虫で続ける：相手が選び直すのを待つ
+      else openFighter();
       break;
     case 'closed':
       if (curScreen === 'result' || netEnd) { oppLeft = true; renderResultNet(); break; }
@@ -7788,14 +7790,17 @@ function netEndBanner() {
 /** 結果画面のボタン（通信対戦：再戦する／やめる。CPU対戦：元に戻す） */
 function renderResultNet() {
   const ag = $('#again'), ts = $('#toSelect'), tt = $('#toTitle'), rn = $('#resNet');
-  if (!online) { ag.textContent = '再戦'; ag.disabled = false; ts.hidden = false; tt.textContent = 'タイトルへ'; rn.textContent = ''; return; }
+  if (!online) { ag.textContent = '再戦'; ag.disabled = false; ts.hidden = false; ts.disabled = false; ts.textContent = 'キャラ選択へ'; tt.textContent = 'タイトルへ'; rn.textContent = ''; return; }
   const gone = oppLeft || !net;
-  ag.textContent = netRematch.me ? '待っています' : '再戦する'; ag.disabled = gone || netRematch.me;
-  ts.hidden = true; tt.textContent = 'やめる';
-  rn.textContent = gone ? '相手は退出しました' : netRematch.me && !netRematch.opp ? '相手の返事を待っています…' : netRematch.opp && !netRematch.me ? '相手が再戦を希望しています' : '';
+  const mk = netRematch.myKeep;
+  ag.textContent = netRematch.me && mk ? '待っています' : '同じ虫で続ける'; ag.disabled = gone || netRematch.me;
+  ts.hidden = false; ts.textContent = netRematch.me && !mk ? '待っています' : '虫や技を変える'; ts.disabled = gone || netRematch.me;
+  tt.textContent = '対戦をやめる';
+  const oppWish = netRematch.oppKeep === true ? '相手は同じ虫で続けたいようです' : netRematch.oppKeep === false ? '相手は虫や技を変えたいようです' : '相手が再戦を希望しています';
+  rn.textContent = gone ? '相手は退出しました' : netRematch.me && !netRematch.opp ? '相手の返事を待っています…' : netRematch.opp && !netRematch.me ? oppWish : '';
   rn.className = netRematch.opp && !gone ? 'hot' : '';
 }
-function netRematchReq() { if (!net || oppLeft || netRematch.me) return; netRematch.me = true; net.send({ t: 'rematch', yes: true }); renderResultNet(); }
+function netRematchReq(keep) { if (!net || oppLeft || netRematch.me) return; netRematch.me = true; netRematch.myKeep = !!keep; net.send({ t: 'rematch', yes: true, keep: !!keep }); renderResultNet(); }
 
 function abortMatch() {
   pendingAbort = false;
