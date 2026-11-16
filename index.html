@@ -708,13 +708,27 @@ body.lp .on-panel { padding: 14px 16px; gap: 8px; } body.lp #netKey { font-size:
 .mode-card.main { border-color: var(--gold-hi); box-shadow: 0 0 0 1px var(--gold-hi), 0 0 26px rgba(241,210,127,.18); background: radial-gradient(ellipse at 80% 20%, #2a2215, #161412 70%); }
 /* モード画面の画像：CPU対戦＝パラワンvsテイオウ、チュートリアル＝平田博士、図鑑＝虫の一覧 */
 #modeBattle, #modeCpu, #modeOnline { background: linear-gradient(0deg, rgba(0,0,0,.85), rgba(0,0,0,.15) 55%, rgba(0,0,0,0)), url(img/mode_cpu.webp) center 35% / cover, #161412; }
-#modeTut { background: linear-gradient(90deg, rgba(16,14,12,.96) 40%, rgba(16,14,12,.15) 78%), url(img/hakase_full.webp) right 6% top 8% / auto 210% no-repeat, #161412; }
-#modeZukan { background: linear-gradient(90deg, rgba(16,14,12,.96) 38%, rgba(16,14,12,.35)), url(img/mode_zukan.webp) right top / 62% auto no-repeat, #161412; }
+#modeTut { background: linear-gradient(90deg, rgba(16,14,12,.94) 30%, rgba(16,14,12,0) 62%), linear-gradient(0deg, rgba(16,14,12,.7), rgba(16,14,12,0) 45%), url(img/hakase_full.webp) right 4% top 6% / auto 215% no-repeat, radial-gradient(ellipse at 78% 30%, #3a2f1c, #161412 70%); }
+#modeZukan { background: linear-gradient(90deg, rgba(16,14,12,.96) 30%, rgba(16,14,12,.1) 70%), linear-gradient(0deg, rgba(16,14,12,.75), rgba(16,14,12,0) 50%), url(img/mode_zukan.webp) right top / 70% auto no-repeat, #161412; }
 .mode-card .mc-t, .mode-card .mc-d, .mode-card .mc-k { text-shadow: 0 2px 6px #000; }
 .mc-k { font-family: var(--f-latin); font-style: italic; font-size: 14px; letter-spacing: .25em; color: var(--gold); }
 .mc-t { font-family: var(--f-mincho); font-weight: 800; font-size: 30px; color: #fff; }
 .mode-card.main .mc-t { color: var(--gold-hi); font-size: 40px; }
 .mc-d { font-family: var(--f-body); font-size: 14px; color: #bdb6aa; }
+#screen-mode { container-type: size; }
+.mode-body, .mode-vs { --ah: calc(100cqh - 132px); --w: min(100cqw, 1600px, calc(var(--ah) * 2.6)); flex: none; width: var(--w); height: min(var(--ah), calc(var(--w) / 1.8)); margin: auto; max-width: none; }
+.mode-body { align-content: stretch; }
+.mode-sub { min-height: 0; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+.mode-vs { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+.mode-card { min-height: 0; overflow: hidden; }
+body.lp .mode-body, body.lp .mode-vs { --ah: calc(100cqh - 114px); --w: min(100cqw, calc(var(--ah) * 3.3)); }
+#modeTut .mc-d, #modeZukan .mc-d { max-width: 58%; }
+@container (max-aspect-ratio: 1/1) {   /* 縦長の画面：対戦を上に大きく、下に2枚を重ねる */
+  .mode-body { --w: min(100cqw, 620px); height: min(var(--ah), calc(var(--w) * 1.9)); grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr); }
+  .mode-card { padding: 14px 18px; gap: 4px; } .mc-t { font-size: 26px; } .mc-k { font-size: 12px; }
+  .mode-vs { --w: min(100cqw, 620px); height: min(var(--ah), calc(var(--w) * 1.3)); }
+}
+@container (min-width: 1100px) and (min-height: 700px) { .mode-card { padding: 26px 30px; } .mc-t { font-size: 36px; } .mode-card.main .mc-t { font-size: 50px; } .mc-d { font-size: 16px; } .mc-k { font-size: 16px; } }
 /* 図鑑 */
 .dinfo.zk { overflow-y: auto; max-height: 52%; padding-right: 4px; }
 .dinfo.zk.zsk { max-height: none; flex: 1; }
@@ -7098,7 +7112,7 @@ function renderMode() {
   const want = modeVs ? [['#modeCpu', 'palawan', 'teiou', false], ['#modeOnline', 'hondo', 'aceh', false]] : [['#modeBattle', 'palawan', 'teiou', true]];
   for (const [sel, a, b, top] of want) {
     const key = a + '|' + b + '|' + top, el = $(sel);
-    const put = () => { el.style.background = `linear-gradient(0deg, rgba(0,0,0,.85), rgba(0,0,0,.15) 55%, rgba(0,0,0,0)), url(${pairShots[key]}) center ${top ? '30%' : '50%'} / cover, #0b0806`; };
+    const put = () => { el.style.background = `linear-gradient(0deg, rgba(0,0,0,.88), rgba(0,0,0,.2) 45%, rgba(0,0,0,0) 65%), radial-gradient(ellipse at 50% ${top ? '38%' : '50%'}, rgba(0,0,0,0) 35%, rgba(0,0,0,.62) 100%), url(${pairShots[key]}) center ${top ? '30%' : '50%'} / cover, #0b0806`; };
     if (pairShots[key]) { put(); continue; }
     preloadBeetles([a, b]).then(() => { if (!pairShots[key] && GLB_READY[a] && GLB_READY[b]) pairShots[key] = makePairShot(a, b, top); if (pairShots[key]) put(); });
   }
