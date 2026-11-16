@@ -6473,6 +6473,14 @@ syncBgmBtn();
    Match flow
    ===================================================================== */
 let running = false;
+/* 調整用：URL で CPU の相手と装備を固定できる（例：?cpu=bengkulu&up=oshiage&down=oshitsubushi）。CPU対戦の相手選びにも反映 */
+const FORCE_CPU = (() => {
+  const q = new URLSearchParams(location.search), ch = q.get('cpu');
+  if (!ch || !CH[ch]) return null;
+  const p = CH[ch].pool, up = q.get('up'), down = q.get('down');
+  return { ch, up: p.up.includes(up) ? up : null, down: p.down.includes(down) ? down : null };
+})();
+if (FORCE_CPU) setup.opp = FORCE_CPU.ch;
 function pickOpponent() {
   if (setup.opp !== 'random') return setup.opp;
   const ids = Object.keys(CH).filter(id => id !== setup.char);
@@ -6492,6 +6500,7 @@ async function startMatchBody(rematch, my) {
   const other = online ? netStart.ch : tutCtx ? tutCtx.opp : rematch && lastOpp ? lastOpp : pickOpponent();
   lastOpp = other;
   cpuLoad = online ? { up: netStart.up, down: netStart.down } : tutCtx ? K.cpuLoadout(other) : rematch && cpuLoad && st && st.f[1].charId === other ? cpuLoad : K.cpuLoadout(other);
+  if (!online && !tutCtx && FORCE_CPU && FORCE_CPU.ch === other) cpuLoad = { up: FORCE_CPU.up || cpuLoad.up, down: FORCE_CPU.down || cpuLoad.down };   // 調整用の固定
   st = K.newBattle(K.makeFighter(setup.char, setup.up, setup.down), K.makeFighter(other, cpuLoad.up, cpuLoad.down));
   if (tutCtx && tutCtx.playerSp) st.f[0].sp = C.specialMax;
   if (tutCtx && tutCtx.oppSp) st.f[1].sp = tutCtx.oppSp;
