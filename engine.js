@@ -4,12 +4,12 @@
 'use strict';
 
 const CONFIG = {
-  ruleVer: 1,             // 対戦ルールの版。数値や処理を変えたら上げる（kdt_master.json と同じ値に）。通信対戦は同じ版どうしだけ
+  ruleVer: 2,             // 対戦ルールの版。数値や処理を変えたら上げる（kdt_master.json と同じ値に）。通信対戦は同じ版どうしだけ
   kiaiMax: 10,
   kiaiStart: 4,
   turnTime: 15,          // 秒
   turnTimeShort: 10,     // 選択時間短縮を受けた時
-  maxTurns: 20,          // ターン上限（1ターン最長約30秒 × 20 ＝ 約10分）。超えたら HP の割合で判定
+  maxTurns: 30,          // ターン上限（1ターン最長約30秒 × 30 ＝ 約15分）。超えたら HP の割合で判定
   net: { reconnectGrace: 10, reconnectMax: 3 },   // 通信対戦：切断からの再接続猶予（秒/回）と、1試合で猶予を受けられる回数
   meterStepMs: 170,      // 目押しメーター 1目盛りの時間
   meterFastMul: 0.8,     // 目押し妨害時（約20%高速化）

@@ -95,6 +95,15 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--gold-h
 @keyframes spglow { to { filter: brightness(1.4); } }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .panel.right .chips { justify-content: flex-end; }
+.pows { display: flex; align-items: center; gap: 6px; margin: 2px 0 4px; }
+.panel.right .pows { justify-content: flex-end; }
+.pows .pl { display: flex; flex-direction: column; font-size: 11px; line-height: 1.05; color: #d8d0bf; letter-spacing: .08em; } .pows .pl small { font-size: 9px; color: var(--gray-t); letter-spacing: 0; }
+.panel.right .pows .pl { order: 9; text-align: right; }
+.pw { display: flex; align-items: center; gap: 3px; min-width: 50px; padding: 1px 8px 1px 6px; background: rgba(0,0,0,.62); border: 1px solid var(--steel); border-left-width: 3px; }
+.pw i { font-style: normal; font-size: 12px; } .pw b { font-family: var(--f-num); font-size: 24px; line-height: 1.05; color: #fff; }
+.pw.down { border-left-color: #e0503c; } .pw.down i { color: #ff7a66; } .pw.up { border-left-color: #3c9ee0; } .pw.up i { color: #66b8ff; } .pw.guard { border-left-color: #9a9488; } .pw.guard i { color: #cfc8ba; }
+.pw.plus b { color: #7fe08a; } .pw.minus b { color: #ff8a73; } .pw.off { opacity: .35; }
+body.lp .pows { gap: 4px; margin: 1px 0 2px; } body.lp .pw { min-width: 38px; padding: 0 5px 0 4px; } body.lp .pw b { font-size: 17px; } body.lp .pw i { font-size: 10px; } body.lp .pows .pl { font-size: 9px; } body.lp .pows .pl small { font-size: 7.5px; }
 .chip { font-size: 11px; padding: 2px 7px; border: 1px solid var(--steel); background: rgba(0,0,0,.55); white-space: nowrap; }
 .chip.g-ok { border-color: var(--guard); color: #9fcbff; }
 .chip.g-no { border-color: #5a2a2a; color: #d28b80; text-decoration: line-through; }
@@ -821,7 +830,7 @@ body:not([data-screen="title"]) .sndbtns { display: none; }
 .res-btns .gbtn { width: 100%; }
 /* VS（選手紹介）：技の説明を表示 */
 .icard .skl { display: none; }
-#intro.duel .icard { width: min(470px, calc(50% - 30px)); bottom: 11%; }
+#intro.duel .icard { width: min(470px, calc(50% - max(16px, 4vw) - 10px)); bottom: 11%; overflow-wrap: anywhere; }   /* 左右のカードが重ならないよう、端の余白を差し引いた半分に収める */
 #intro.duel .icard .skl { display: block; }
 #intro.duel .icard .nodu { display: none; }
 .icard .skl { font-family: var(--f-body); font-size: 12.5px; line-height: 1.55; color: #d9d2c4; }
@@ -891,7 +900,7 @@ body.lp .seg.big button { min-height: 44px; min-width: 70px; font-size: 13px; }
 body.lp .mode-card { padding: 12px 14px; min-height: 80px; } body.lp .mc-t { font-size: 22px; } body.lp .mode-card.main .mc-t { font-size: 28px; } body.lp .mc-d { font-size: 12px; }
 body.lp .tlede { font-size: 13px; margin-bottom: 4px; } body.lp .title-c { gap: 8px; }
 body.lp .res-panel .res { font-size: 56px; } body.lp .res-name { font-size: 18px; } body.lp .res-btns { flex-direction: row; } body.lp .res-btns .gbtn { width: auto; flex: 1; min-width: 0; }
-body.lp #intro.duel .icard { width: calc(50% - 18px); bottom: 4%; padding: 8px 10px; gap: 2px; }
+body.lp #intro.duel .icard { width: calc(50% - max(16px, 4vw) - 8px); bottom: 4%; padding: 8px 10px; gap: 2px; }
 body.lp #intro.duel .icard .inm { font-size: 17px; } body.lp #intro.duel .icard .isci { display: none; } body.lp #intro.duel .icard .ipow b { font-size: 20px; }
 body.lp .icard .skl { font-size: 10px; line-height: 1.4; } body.lp .icard .skl em { font-size: 11.5px; }
 body.lp #intro.duel .ivs { bottom: 62%; font-size: 44px; }
@@ -5898,7 +5907,7 @@ function panelHTML(i) {
   <div class="hpbar"><div class="lag"></div><div class="fill"></div><span class="hpnum"></span></div>
   <div class="gauges"><span class="lbl">気合</span><div class="kiai">${'<i></i>'.repeat(10)}</div><span class="num kn"></span>
   <span class="lbl">必殺</span><div class="spbar"><div class="f"></div></div><span class="num spn"></span></div>
-  <div class="chips"></div><div class="skills"></div><div class="fxw"></div>`;
+  <div class="pows"></div><div class="chips"></div><div class="skills"></div><div class="fxw"></div>`;
 }
 const bName = c => c.battleName || c.name;
 const bShort = c => c.battleShort || c.short;                 // バトル中の表示名
@@ -5962,6 +5971,12 @@ function renderHUD() {
     if (f.kanaU > 0) chips += `<span class="chip kana${kb}">宣告（残り${f.kanaU}T）</span>` + (f.decl ? `<span class="chip spr">宣言：${declLabel(f.decl)}</span>` : '');
     if (f.kanaG > 0) chips += `<span class="chip kana${kb}">加護（残り${f.kanaG}T）</span>`;
     p.querySelector('.chips').innerHTML = chips;
+    // 装備技の攻勢（気合0のとき）：お互いに一目で比べられるよう大きく出す。次のターンの増減も込み
+    const pw = cmd => { const b = basePowFor(f, cmd), d = cmd !== 'guard' && bf.pow ? bf.pow : 0; return [b + d, d]; };
+    p.querySelector('.pows').innerHTML = '<span class="pl">攻勢<small>気合0</small></span>' + [['down', '▼'], ['up', '▲'], ['guard', '守']].map(([cmd, mk]) => {
+      const [v, d] = pw(cmd), off = cmd === 'guard' && !canG;
+      return `<span class="pw ${cmd}${d > 0 ? ' plus' : d < 0 ? ' minus' : ''}${off ? ' off' : ''}" title="${cmd === 'guard' ? 'ガード' : K.skillOf(f, cmd).name}"><i>${mk}</i><b>${v}</b></span>`;
+    }).join('');
   }
 }
 function addLog(html) { turnLog.unshift(html); $('#log').innerHTML = turnLog.slice(0, 30).map(x => `<div>${x}</div>`).join(''); }
