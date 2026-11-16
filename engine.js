@@ -4,7 +4,7 @@
 'use strict';
 
 const CONFIG = {
-  ruleVer: 3,             // 対戦ルールの版。数値や処理を変えたら上げる（kdt_master.json と同じ値に）。通信対戦は同じ版どうしだけ
+  ruleVer: 4,             // 対戦ルールの版。数値や処理を変えたら上げる（kdt_master.json と同じ値に）。通信対戦は同じ版どうしだけ
   kiaiMax: 10,
   kiaiStart: 4,
   turnTime: 15,          // 秒
@@ -258,7 +258,7 @@ const SKILLS = {
   // --- 体力型向け（技巧140） ---
   funbari:      { name: '踏ん張り返し', type: 'down', pow: 1, dmg: 14, tag: '自己強化', fx: 'healHit', heal: 8, gikou: 140, desc: '命中時、自分のHPを8回復。' },
   // --- テクニカル（技巧180・200）：相手の行動を読んで刺す ---
-  sakiyomi:     { name: '先読み崩し',   type: 'down', pow: 2, dmg: 13, tag: '自己強化', fx: 'readDown', amt: 3, gikou: 160, desc: '相手が下がり技を出していたら、攻勢値 +3。' },
+  sakiyomi:     { name: '先読み崩し',   type: 'down', pow: 1, dmg: 13, tag: '自己強化', fx: 'readDown', amt: 2, gikou: 160, desc: '相手が下がり技を出していたら、攻勢値 +2。' },
   naraku:       { name: '奈落落とし',   type: 'down', pow: 0, dmg: 30, tag: '高火力', fx: 'selfLock', gikou: 180, desc: '攻勢は低いが、威力がとても高い。使った次のターン、ガードを使えない。' },
   gekirin:      { name: '起死回生',   type: 'down', pow: 2, dmg: 13, tag: '高火力', fx: 'comeback', gikou: 200, desc: '自分のHP割合が相手より低いと、威力1.5倍。' },
   kiaiShibori:  { name: '気合絞り',     type: 'down', pow: 2, dmg: 12, tag: '妨害', fx: 'drain1', amt: 2, gikou: 200, desc: '命中時、相手の残り気合 -2（連続で使うと -1、3回目以降は 0）。' },
@@ -273,7 +273,7 @@ const SKILLS = {
   tenkuzushi:   { name: '天崩し',       type: 'up',   pow: 0, dmg: 28, tag: '高火力', fx: 'brace', taken: 1.3, gikou: 180, desc: '攻勢は低いが、威力がとても高い。使ったターン、受けるダメージ +30%。' },
   kiaiKezuri:   { name: '気合削り', type: 'up',   pow: 3, dmg: 11, tag: '妨害', fx: 'drain1', amt: 2, gikou: 180, desc: '命中時、相手の残り気合 -2（連続で使うと -1、3回目以降は 0）。' },
   sukuiKuzushi: { name: 'すくい崩し',   type: 'up',   pow: 3, dmg: 9,  tag: '妨害', fx: 'spDrain', gikou: 140, desc: '命中時、相手の必殺ゲージ -20%。' },
-  futokoro:     { name: '見切り投げ',   type: 'up',   pow: 3, dmg: 10, tag: '自己強化', fx: 'readUp', amt: 3, gikou: 160, desc: '相手が上がり技を出していたら、攻勢値 +3。' },
+  futokoro:     { name: '見切り投げ',   type: 'up',   pow: 2, dmg: 10, tag: '自己強化', fx: 'readUp', amt: 2, gikou: 160, desc: '相手が上がり技を出していたら、攻勢値 +2。' },
   memai:        { name: '目眩まし投げ', type: 'up',   pow: 3, dmg: 10, tag: '妨害', fx: 'meterFast', gikou: 180, desc: '命中した次ターン、相手の目押しメーターが約20%速くなる。' },
   koukaku:      { name: '甲冑固め',     type: 'up',   pow: 3, dmg: 10, tag: '自己強化', fx: 'brace', gikou: 140, desc: '使ったターン、受けるダメージ -30%（打ち負けても軽減）。' },
   guardBreak:   { name: '守り崩し',     type: 'up',   pow: 3, dmg: 12, tag: '対ガード', fx: 'guardKiai', gikou: 160, desc: '相手がガードしていたら、自分の気合 +2。' },
