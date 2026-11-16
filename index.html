@@ -778,6 +778,11 @@ body.lp .mode-body, body.lp .mode-vs { --ah: calc(100cqh - 114px); --w: min(100c
 .zk-desc { margin: 0; padding: 10px 12px; background: rgba(0,0,0,.35); border-left: 2px solid var(--gold); font-family: var(--f-body); font-size: 14px; line-height: 1.7; color: #f0ebe1; }
 .zk-who { font-family: var(--f-body); font-size: 12px; line-height: 1.7; color: #cfc8ba; }
 .zk-who span { display: block; font-size: 11px; letter-spacing: .15em; color: var(--gray-t); }
+.zk-tip { display: flex; gap: 10px; align-items: flex-start; background: #f4f0e6; color: #2a241b; padding: 8px 10px 8px 8px; border-radius: 4px; }
+.zk-tip .hface.sm { width: 56px; flex: none; border: 1px solid #d8d0bf; }
+.zk-tip .zt-body { font-family: var(--f-body); font-size: 13px; line-height: 1.65; } .zk-tip .zt-body b { display: block; font-size: 11px; letter-spacing: .1em; color: #8a6a1e; }
+.zk-tip + .zk-who span, .zk-tip + .zk-who + .zk-who span { color: var(--gold); }
+body.lp .zk-tip .hface.sm { width: 44px; } body.lp .zk-tip .zt-body { font-size: 12px; line-height: 1.5; }
 body.lp .skrow { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; } body.lp .skrow .mc { min-height: 58px; padding: 5px 8px; }
 body.lp .zk-stats b { font-size: 18px; } body.lp .zk-desc { font-size: 12px; padding: 6px 8px; }
 .zk-sci { font-family: var(--f-latin); font-size: 18px; color: #cfc3a6; }
@@ -7112,7 +7117,7 @@ function renderMode() {
   const want = modeVs ? [['#modeCpu', 'palawan', 'teiou', false], ['#modeOnline', 'hondo', 'aceh', false]] : [['#modeBattle', 'palawan', 'teiou', true]];
   for (const [sel, a, b, top] of want) {
     const key = a + '|' + b + '|' + top, el = $(sel);
-    const put = () => { el.style.background = `linear-gradient(0deg, rgba(0,0,0,.88), rgba(0,0,0,.2) 45%, rgba(0,0,0,0) 65%), radial-gradient(ellipse at 50% ${top ? '38%' : '50%'}, rgba(0,0,0,0) 35%, rgba(0,0,0,.62) 100%), url(${pairShots[key]}) center ${top ? '30%' : '50%'} / cover, #0b0806`; };
+    const put = () => { el.style.background = `linear-gradient(0deg, rgba(0,0,0,.88), rgba(0,0,0,.2) 45%, rgba(0,0,0,0) 65%), radial-gradient(ellipse at 50% ${top ? '38%' : '50%'}, rgba(0,0,0,0) 35%, rgba(0,0,0,.62) 100%), url(${pairShots[key]}) center ${top ? '40%' : '50%'} / cover, #0b0806`; };
     if (pairShots[key]) { put(); continue; }
     preloadBeetles([a, b]).then(() => { if (!pairShots[key] && GLB_READY[a] && GLB_READY[b]) pairShots[key] = makePairShot(a, b, top); if (pairShots[key]) put(); });
   }
@@ -7130,13 +7135,13 @@ function makePairShot(id0, id1, top) {
   const b0 = new Beetle(id0, 0, ts), b1 = new Beetle(id1, 1, ts);
   const gap = 0.12, x0 = -(b0.reach + gap / 2), x1 = b1.reach + gap / 2, shift = -(x0 + x1) / 2;   // 対戦と同じ間合い
   b0.baseX = x0 + shift; b1.baseX = x1 + shift;
-  for (const b of [b0, b1]) { b.t = 0; b.pose.jaw = 0.35; b.pose.crouch = 0.3; b.update(0); }
+  for (const b of [b0, b1]) { b.t = 0; b.pose.jaw = top ? 0.6 : 0.35; b.pose.crouch = 0.3; b.update(0); }
   const S = Math.max(b0.s, b1.s), span = x1 - x0;
   const cam = new THREE.PerspectiveCamera(22, W / H, 0.05, 200);
-  if (top) {
-    const bd = new THREE.Box3().setFromObject(b0.root).union(new THREE.Box3().setFromObject(b1.root)), sz = bd.getSize(new V3()), c = bd.getCenter(new V3()); c.y = bd.min.y;
-    const half = Math.tan(cam.fov * Math.PI / 360), h = sz.x * 1.32 / (2 * half) + sz.y, off = 0.17 * 2 * half * h;
-    cam.up.set(0, 0, -1); cam.position.set(c.x, c.y + h, c.z + off); cam.lookAt(c.x, c.y, c.z + off);   // 画面の下側へずらす＝虫は上寄りに写る（下に文字が載る）
+  if (top) {   // 対戦カード：低い位置から斜めに見上げる（手前の虫が大きく迫る）
+    const q = [-1.2, 0.2, -1.6, -0.1, 0.45, 0, 27];
+    cam.fov = q[6]; cam.updateProjectionMatrix();
+    cam.position.set(q[0] * span, q[1] * span + 0.1 * S, q[2] * span); cam.lookAt(q[3] * span, q[4] * S - q[5] * span, 0);
   } else {
     const d = 1.3 * span + 2.35 * S;   // 2匹がちょうど横に収まる距離
     cam.position.set(0.25 * S, 0.75 * S + 0.18 * d, d); cam.lookAt(0, 0.32 * S, 0);
@@ -7365,6 +7370,42 @@ function zukanCompareHTML() {
 }
 $('#zMode').querySelectorAll('button').forEach(b => b.onclick = () => { zMode = b.dataset.m; renderZukan(); });
 const TAG_ORDER = ['標準', '高火力', '対ガード', '自己強化', '妨害'];   // 技の属性（5種類）
+const SK_TIPS = {   // 技図鑑：平田博士の解説（f=顔、say=ひとこと、bug=おすすめの虫、plan=おすすめの戦略）
+  jihibiki: { f: 'explain', say: '当てれば次のターン、相手の攻勢が1下がる。地味じゃが、次の競り合いを有利に運べる技じゃよ。', bug: '内歯下がりの虫。当てた次のターンも攻め続けやすい。', plan: '当てた次のターンに主力技を重ねて、流れをつかむ戦い方。' },
+  oshitsubushi: { f: 'smile', say: 'くせのない、素直に重い下がり技じゃ。迷ったらまずこれを持たせるとよいぞ。', bug: '内歯下がりの大型。はじめて使う虫にも合う。', plan: '気合の読み合いに集中したいとき。必要技巧が低いぶん、HPのおまけも付く。' },
+  sokojikara: { f: 'serious', say: '追い込まれてからが本番の技じゃ。HPの割合で負けておるほど、一撃が重くなるぞ。', bug: 'HPの少ない攻撃型や気合型。先に削られやすい虫ほど出番が多い。', plan: '序盤は無理をせず、劣勢になってから逆転を狙う戦い方。' },
+  fumishime: { f: 'explain', say: '攻めながら身を固める技じゃ。打ち負けても痛手が軽くなるので、思い切って出せるのう。', bug: 'HPの少ない虫。相手の高火力を受けたくない虫。', plan: '相手の大技や必殺が来そうなターンに、保険をかけつつ殴り合う。' },
+  agoPress: { f: 'idea', say: '攻勢は低いが、通れば大きい。気合をしっかり積んで押し通す技じゃな。', bug: '内歯下がりで、気合に余裕のある虫。', plan: '相手の気合が少ないターンを見て、大きく削る。' },
+  juuatsu: { f: 'smile', say: '競り負けても傷を残しやすい、ねばり強い技じゃ。少しずつ確実に削れるぞ。', bug: '体力型。長い勝負に持ち込みたい虫。', plan: '勝ち負けにこだわらず、毎ターン手堅く削っていく持久戦。' },
+  kaeshi: { f: 'serious', say: 'やられたらやり返す技じゃ。前のターンに負けておれば威力が倍になるぞ。', bug: 'HPに余裕のある体力型。一度負けても立て直せる虫。', plan: '負けた直後の反撃。相手が勢いづいて攻めてくるところに合わせる。' },
+  kaifukuFuji: { f: 'think', say: '当てれば相手の気合の戻りが鈍くなる。じわじわ息切れさせる技じゃよ。', bug: '気合型。気合の差をさらに広げられる。', plan: '気合の量で上回り続けて、相手に大きな勝負をさせない戦い方。' },
+  jirashi: { f: 'wink', say: '当てれば相手の考える時間が短くなる。あわてさせて、読みを狂わせる技じゃ。', bug: '戦闘力120以下の小型。番狂わせを狙う虫。', plan: '人との対戦で、相手のミスを誘いたいとき。' },
+  kihakuOshi: { f: 'joy', say: '当てるたびに必殺ゲージが伸びる。小型はもともと溜まりやすいから、相性がよいぞ。', bug: '必殺技が強力な小型。', plan: '必殺を早めに構えて、相手にガードを意識させ続ける戦い方。' },
+  midoriKago: { f: 'guide', say: 'カナブンが味方に付く技じゃ。いる間は削られにくく、競り合いにも強くなるぞ。ただし気合の戻りは遅くなるのう。', bug: '競り合いの連打に自信がある人の虫。気合型なら戻りの遅さも補える。', plan: 'カナブンがいる3ターンのあいだに、一気に攻め立てる短期勝負。' },
+  haisui: { f: 'serious', say: '攻勢も威力も一級品じゃが、持たせておるだけで気合の戻りが遅くなる。覚悟のいる技じゃよ。', bug: '気合型。戻りの遅さを打ち消しやすい。', plan: '少ない気合で高い攻勢を出して、早い決着を狙う戦い方。長引くと苦しくなるぞ。' },
+  funbari: { f: 'relief', say: '当てれば自分のHPが戻る。殴り合いながら息を整えられる技じゃな。', bug: '体力型。もともと多いHPがさらに減りにくくなる。', plan: '長い勝負に持ち込んで、じわじわ差を付ける持久戦。' },
+  sakiyomi: { f: 'idea', say: '同じ技を続ける相手にはめっぽう強い。攻勢がぐんと上がって、まず打ち負けんぞ。', bug: '戦闘力140以下の虫。格上の主力技に立ち向かいたい虫。', plan: '相手が得意技を連発してくるのを読んで、そこに合わせる。' },
+  naraku: { f: 'surprise', say: '威力は下がり技でいちばんじゃ。ただし攻勢は低く、次のターンはガードが使えん。まさに大勝負の技じゃのう。', bug: '戦闘力120以下で、気合をたくさん積める虫。', plan: '相手の気合が尽きたターンに、一発逆転を狙う。使った次のターンの守りも考えておくのじゃぞ。' },
+  gekirin: { f: 'serious', say: '戦闘力100の虫だけが持てる逆転の技じゃ。HPの割合で負けておれば威力が上がるぞ。', bug: '戦闘力100の虫。格上相手ではたいてい条件を満たせる。', plan: '格上に削られながら、要所で大きく取り返す戦い方。' },
+  kiaiShibori: { f: 'think', say: '当てれば相手の気合を直接減らせる。続けて使うと効き目が落ちるから、間をあけて使うのじゃ。', bug: '戦闘力100の虫。気合の量で勝負したい虫。', plan: '相手が気合を溜めてきたところで当てて、大技を出させない。' },
+  ugachi: { f: 'idea', say: 'ガードの上から削れる珍しい技じゃ。守りを固める相手には、これがよく効くぞ。', bug: '内歯上がりの虫。攻勢で勝ちやすく、ガードも誘いやすい。', plan: 'ガードの多い相手や、HPの多い体力型を相手にするとき。' },
+  oshiage: { f: 'explain', say: '攻勢がとても高く、ガードされても相手の次の攻勢を下げられる。主導権を握る技じゃな。', bug: '火力をもう片方の技や必殺に任せられる虫。', plan: 'ガードを誘ってから、次のターンに下がり技で大きく削る二段構え。' },
+  tekkeKachiage: { f: 'smile', say: '攻勢が高くて打ち負けにくい、頼れる上がり技じゃ。困ったらこれでよいぞ。', bug: 'どの虫にも合う。内歯上がりならさらに安定する。', plan: '競り合いに勝って、手堅く流れを保つ戦い方。' },
+  gouSukui: { f: 'smile', say: '上がり技にしては威力が高い。攻勢と威力の釣り合いがよい技じゃよ。', bug: '内歯上がりの大型。主力として十分な火力が出る。', plan: '上がり技を主力にして、正面から押し切る戦い方。' },
+  tentsuki: { f: 'surprise', say: '攻勢は低いが、決まれば上がり技でも指折りの威力じゃ。気合を積んで狙うのじゃぞ。', bug: '内歯上がりで、気合に余裕のある虫。', plan: '相手の気合が少ないターンに、大きな一撃を通す。' },
+  haneokoshi: { f: 'joy', say: '当てれば気合が1戻ってくる。攻めながら気合を保てる、便利な技じゃな。', bug: '気合の重い技と組ませたい虫。', plan: 'この技で気合を保ちつつ、もう片方の大技につなげる。' },
+  tenkuzushi: { f: 'surprise', say: '威力はとても高いが、攻勢は低く、使ったターンは受ける痛手も増える。当たるも外れるも大きい技じゃ。', bug: '戦闘力120以下で、気合をたくさん積める虫。', plan: '相手が気合を使い切ったターンや、ガードを使えないターンを狙い撃つ。' },
+  kiaiKezuri: { f: 'think', say: '攻勢が高く、当てれば相手の気合を減らせる。続けて使うと効き目が落ちるから気を付けるのじゃ。', bug: '戦闘力120以下の小型。格上の大技を封じたい虫。', plan: '相手の気合を枯らして、こちらだけが大きく積める形を作る。' },
+  sukuiKuzushi: { f: 'explain', say: '当てれば相手の必殺ゲージを減らせる。必殺がこわい相手への備えになるぞ。', bug: 'HPの少ない虫。必殺を受けると苦しい虫。', plan: '必殺が溜まりやすい小型を相手にするとき。ゲージがMAXに近づいたら当てに行く。' },
+  futokoro: { f: 'idea', say: '同じ技を続ける相手に当てれば、威力が大きく跳ね上がる。相手の癖を見抜く目が要るのう。', bug: '戦闘力140以下の虫。火力の足りなさを補える。', plan: '相手が得意技を連発してくるのを読んで、手痛いお返しをする。' },
+  memai: { f: 'wink', say: '当てれば相手の目押しメーターが速くなる。ねらった気合を入れにくくさせる技じゃよ。', bug: '戦闘力120以下の小型。気合1つの差で勝負したい虫。', plan: '人との対戦で、相手の目押しミスを誘いたいとき。' },
+  koukaku: { f: 'relief', say: '攻勢が高いうえに、使ったターンの痛手が軽くなる。攻めと守りを兼ねた技じゃな。', bug: 'HPの少ない攻撃型や気合型。', plan: '相手の大技や必殺が来そうなターンに、ガードの代わりとして出す。' },
+  guardBreak: { f: 'idea', say: '相手がガードしておれば、気合が2も戻ってくる。守る相手から得を取る技じゃ。', bug: '気合の重い大技を持つ虫。', plan: 'ガードを誘って気合を稼ぎ、次のターンに大きく積んで攻める。' },
+  hissatsuKasoku: { f: 'joy', say: '当てるたびに必殺ゲージが大きく伸びる。必殺を軸に戦うなら、まずこれじゃな。', bug: '必殺技が強力な虫。戦闘力140以下なら持てるぞ。', plan: '必殺を早く構えて、相手にガードを強いる戦い方。' },
+  kokuu: { f: 'wink', say: '気合をほとんど使わずに高い攻勢を出せる。相手の読みを外す、小型ならではの技じゃよ。', bug: '戦闘力100の虫。気合を温存したい虫。', plan: 'この技で気合を溜め、次のターンにもう片方の技へ大きく積む。' },
+  midoriSenkoku: { f: 'guide', say: 'カナブンの前で、次の行動を宣言してから戦う技じゃ。宣言通りなら威力は倍、嘘をついて負ければ手痛い罰がある。度胸と読みの技じゃのう。', bug: '戦闘力120以下の小型。読み合いに自信がある人の虫。', plan: '正直に宣言して押し通すか、嘘で裏をかくか。相手との心理戦を楽しみたいときに。' },
+  ikigire: { f: 'think', say: '攻勢が高く、当てれば相手の気合の戻りが鈍くなる。戦闘力100の虫だけが持てる技じゃ。', bug: '戦闘力100の気合型。気合の差で格上に食らいつける。', plan: '当て続けて相手を息切れさせ、気合の量で押し勝つ戦い方。' },
+};
 function renderSkillZukan() {
   $('#zTabs').innerHTML = [['all', 'すべて'], ['down', '下がり技'], ['up', '上がり技']].map(([k, n]) => `<button type="button" class="tab ${skTab === k ? 'sel' : ''}" data-k="${k}">${n}</button>`).join('');
   $('#zTabs').querySelectorAll('.tab').forEach(b => b.onclick = () => { skTab = b.dataset.k; renderZukan(); });
@@ -7377,13 +7418,16 @@ function renderSkillZukan() {
   }).join('')}</div></section>`).join('');
   g.querySelectorAll('.mc[data-id]').forEach(b => b.onclick = () => { skSel = b.dataset.id; const top = g.scrollTop; renderZukan(); $('#zGrid').scrollTop = top; });
   $('#zPager').hidden = true;
-  const k = SK[skSel], who = Object.values(CH).filter(c => c.gikou >= k.gikou);
+  const k = SK[skSel], tip = SK_TIPS[skSel];
   $('#zInfo').innerHTML = `<div class="zk-skhead"><span class="ty ${k.type}">${k.type === 'up' ? '▲ 上がり技' : '▼ 下がり技'}</span><span class="chip">${k.tag}</span></div>
     <div class="di-name">${k.name}</div>
     <div class="zk-stats"><div><small>攻勢</small><b>${k.pow}</b></div><div><small>威力</small><b>${k.dmg}</b></div><div><small>必要技巧</small><b>${k.gikou}</b></div></div>
     <p class="zk-desc">${k.desc}</p>
-    <div class="zk-who"><span>装備できる虫（${who.length}種）</span>${who.length === Object.keys(CH).length ? '全種' : who.length > 12 ? `戦闘力${300 - k.gikou}以下の全種` : who.map(c => c.name).join('・')}</div>
+    ${tip ? `<div class="zk-tip"><div class="hface sm" id="zkTipFace" role="img" aria-label="平田博士"></div><div class="zt-body"><b>平田博士</b>${tip.say}</div></div>
+    <div class="zk-who"><span>こんな虫におすすめ</span>${tip.bug}</div>
+    <div class="zk-who"><span>こんな戦略におすすめ</span>${tip.plan}</div>` : ''}
     <div class="zk-who"><span>補足</span>攻勢・威力は技そのものの値です。実戦では、体格（戦闘力160以上で攻勢+1）・内歯の得意／省エネ・型による補正が加わります。</div>`;
+  const tf = $('#zkTipFace'); if (tf) { const [c, r] = FACE[tip.f] || FACE.normal; tf.style.backgroundPosition = `${(c / 3 * 100).toFixed(3)}% ${r / 2 * 100}%`; }
 }
 function renderZukan() {
   $('#zMode').querySelectorAll('button').forEach(b => b.classList.toggle('sel', b.dataset.m === zMode));
