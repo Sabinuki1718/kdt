@@ -46,7 +46,7 @@
 }
 [hidden] { display: none !important; }
 *, *::before, *::after { box-sizing: border-box; }
-html, body { height: 100%; }
+html, body { height: 100%; overscroll-behavior: none; }   /* 端からのスワイプで前のページへ戻る動きを抑える */
 body { margin: 0; background: var(--ink); color: var(--text); font-family: var(--f-body); overflow: hidden; -webkit-tap-highlight-color: transparent; }
 button { font-family: inherit; color: inherit; }
 button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
@@ -7796,6 +7796,31 @@ function netConfirmLeave() {
   $('#pzNo').onclick = () => { $('#modal').hidden = true; };
   $('#pzYes').onclick = () => { $('#modal').hidden = true; netLeave(); };
 }
+// 横スワイプ・戻るボタンでページを離れる前に確認する（履歴を1つ積んでおき、戻る操作を受け止める）
+let exitArmed = false, exitOk = false, exitTm = [];
+function armExit() { if (exitArmed || exitOk) return; exitArmed = true; try { history.pushState({ kdt: 1 }, ''); } catch (e) { exitArmed = false; } }
+addEventListener('pointerdown', armExit, true); addEventListener('keydown', armExit, true);   // タップ・キー操作のときに積む（操作なしで積んだ履歴は、ブラウザに飛ばされることがある）
+addEventListener('popstate', () => {
+  if (exitOk) return;
+  exitArmed = false;
+  const inMatch = st && running && !st.over;
+  openModal(`<h2>ゲームを終了しますか？</h2><p class="pz-p">${online ? '終了すると、相手との接続も終わります。' : inMatch ? '対戦の途中です。終了すると、この対戦は最初からになります。' : 'ゲームを閉じて、前のページに戻ります。'}</p><div class="pz-acts"><button class="gbtn primary" type="button" id="exNo">続ける</button><button class="gbtn" type="button" id="exYes">終了する</button></div>`);
+  $('#exNo').onclick = () => { $('#modal').hidden = true; armExit(); };
+  $('#exYes').onclick = () => {
+    exitOk = true; $('#modal').hidden = true;
+    if (net) { try { net.send({ t: 'leave' }); } catch (e) {} }
+    history.back();
+    exitTm.push(setTimeout(() => { try { window.close(); } catch (e) {} }, 400));   // ホーム画面から開いたアプリは閉じる
+    exitTm.push(setTimeout(() => {   // 戻れる先も閉じる手段もないとき
+      exitOk = false;
+      openModal(`<h2>終了できませんでした</h2><p class="pz-p">この画面からは閉じられません。ホームボタンやタブを閉じる操作で終了してください。</p><div class="pz-acts"><button class="gbtn primary" type="button" id="exOk">OK</button></div>`);
+      $('#exOk').onclick = () => { $('#modal').hidden = true; };
+    }, 1500));
+  };
+});
+addEventListener('pagehide', () => { exitTm.forEach(clearTimeout); exitTm = []; });
+addEventListener('pageshow', e => { if (e.persisted) { exitOk = false; exitArmed = false; } });   // 戻ってきたら、また確認できるように
+addEventListener('beforeunload', e => { if (exitOk) return; if (online || (st && running && !st.over)) { e.preventDefault(); e.returnValue = ''; } });   // 対戦中にタブを閉じる・再読み込みするとき
 // 相手の通信待ち・再接続中の帯
 let netWaitSince = -1;   // 自分の演出・連打が終わり、相手を待ち始めた時刻
 setInterval(() => {
