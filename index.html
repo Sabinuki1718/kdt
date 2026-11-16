@@ -2145,8 +2145,9 @@ function resize() { layoutMode(); const w = APP_W, h = APP_H; renderer.setSize(w
 addEventListener('orientationchange', () => setTimeout(resize, 200));
 /* スマホ：タップしたときに全画面＋横向き固定にする（対応していない端末では、縦持ちのときに画面ごと90°回して横画面で表示する） */
 const FS_OK = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
-function goFullLandscape() {
+function goFullLandscape(e) {
   if (!matchMedia('(pointer: coarse)').matches || !FS_OK) return;
+  const ae = document.activeElement; if ((e && e.target && e.target.closest && e.target.closest('input, textarea')) || (ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName))) return;   // 文字入力中は全画面に切り替えない（キーボードと取り合いになる）
   if (document.fullscreenElement || document.webkitFullscreenElement) return;
   const el = document.documentElement, rq = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : el.webkitRequestFullscreen();
   Promise.resolve(rq).then(() => screen.orientation && screen.orientation.lock ? screen.orientation.lock('landscape') : null).catch(() => {}).finally(() => setTimeout(resize, 300));
@@ -7722,7 +7723,7 @@ function renderOnline() {
       <p class="on-note">相手と同じ合言葉（5桁の数字）を入れて「部屋に入る」を押します。先に入った人は、相手が来るまで待ちます。<br><em>暗証番号など、ふだん使っている番号は使わないでください。</em></p>
       <p class="on-err">${netErr ? esc(netErr) : ''}</p>`;
     { const k = $('#netKey'); k.addEventListener('input', e => { if (e.isComposing) return; const v = k.value.normalize('NFKC').replace(/\D/g, '').slice(0, 5); if (v !== k.value) k.value = v; }); k.addEventListener('compositionend', () => { k.value = k.value.normalize('NFKC').replace(/\D/g, '').slice(0, 5); }); }   // 数字以外は入らない（全角数字は半角に）
-    setTimeout(() => { const k = $('#netKey'); if (k && curScreen === 'online') k.focus(); }, 0);
+    if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => { const k = $('#netKey'); if (k && curScreen === 'online') k.focus(); }, 0);   // スマホでは自動でキーボードを出さない（全画面中にキーボードが出ると落ちる機種がある）
     return;
   }
   const head = netPh === 'connecting' ? '接続しています…' : netPh === 'waiting' ? '相手を待っています…' : '相手の選択を待っています…';
