@@ -4,7 +4,7 @@
 'use strict';
 
 const CONFIG = {
-  ruleVer: 6,             // 対戦ルールの版。数値や処理を変えたら上げる（kdt_master.json と同じ値に）。通信対戦は同じ版どうしだけ
+  ruleVer: 7,             // 対戦ルールの版。数値や処理を変えたら上げる（kdt_master.json と同じ値に）。通信対戦は同じ版どうしだけ
   kiaiMax: 10,
   kiaiStart: 4,
   turnTime: 15,          // 秒
@@ -252,7 +252,7 @@ const SKILLS = {
   jirashi:      { name: '焦らし押し', type: 'down', pow: 2, dmg: 12, tag: '妨害', fx: 'timeCut', gikou: 180, desc: '命中した次ターン、相手の選択時間 15秒→10秒。' },
   kihakuOshi:   { name: '気迫押し',     type: 'down', pow: 2, dmg: 13, tag: '自己強化', fx: 'spBoost', sp: 12, gikou: 180, desc: '命中時、自分の必殺ゲージ +12%。' },
   // --- 下がり技：カナブン（技巧140） ---
-  midoriKago:   { name: '金蚉の加護',   type: 'down', pow: 2, powKana: 3, dmg: 13, tag: '自己強化', fx: 'kanaGuard', turns: 3, gikou: 140, desc: '命中時、カナブンを呼ぶ（3ターン）。いる間はこの技の攻勢 2→3、攻勢負けの削りダメージを受けず、競り合いの連打が1.5倍。ただし気合の自然回復 -1。いる間に当てても残りターンは延びない（3ターンでいったん去る）。' },
+  midoriKago:   { name: '金蚉の加護',   type: 'down', pow: 2, powKana: 3, dmg: 13, tag: '自己強化', fx: 'kanaGuard', turns: 3, gikou: 140, desc: '命中時、カナブンを呼ぶ（3ターン）。いる間はこの技の攻勢 2→3、攻勢で負けて受けるダメージ以外（ガードの上から通るダメージ・攻勢負けの削りダメージなど）を一切受けず、競り合いの連打が1.5倍。ただし気合の自然回復 -1。いる間に当てても残りターンは延びない（3ターンでいったん去る）。' },
   // --- 下がり技：捨て身（技巧160） ---
   haisui:       { name: '背水の刃', type: 'down', pow: 3, dmg: 21, tag: '高火力', fx: 'equipRegenDown', gikou: 160, desc: '攻勢も威力も高いが、装備している間ずっと気合の自然回復 -1。' },
   // --- 体力型向け（技巧140） ---
@@ -530,11 +530,11 @@ function outcomeCore(st, acts, ctx) {
   const F = st.f;
   // 効果の通知：画面のワイプ（o.fx）とログ（o.notes）の両方に載せる。文言は「項目 ±値」。bad＝受けた側に不利な効果
   const note = (side, text, bad) => { o.fx.push({ to: side, text, bad: !!bad }); o.notes.push(`${bshort(F[side])}：${text}`); };
-  const addHit = (from, dmg, role, kind) => {
+  const addHit = (from, dmg, role, kind, soft) => {   // soft：攻勢で負けて受けるダメージではない（ガードの上から通る分など）
     const tb = F[1 - from].buff, tsk = skillOf(F[1 - from], acts[1 - from].cmd);
     const brace = tsk && tsk.fx === 'brace' ? (tsk.taken || 0.7) : 1;
     dmg = Math.max(0, Math.round(dmg * (tb && tb.takenMul ? tb.takenMul : 1) * brace));
-    if (role === 'chip' && (F[1 - from].chipImmune > 0 || F[1 - from].kanaG > 0)) { if (dmg > 0) note(1 - from, '削りダメージ 無効'); dmg = 0; }
+    if ((role === 'chip' && (F[1 - from].chipImmune > 0 || F[1 - from].kanaG > 0)) || (soft && F[1 - from].kanaG > 0)) { if (dmg > 0) note(1 - from, '削りダメージ 無効'); dmg = 0; }   // 金蚉の加護：攻勢で負けて受けるダメージ以外は受けない
     o.dmg[1 - from] += dmg;
     o.hits.push({ from, to: 1 - from, dmg, role, kind });
   };
@@ -623,7 +623,7 @@ function outcomeCore(st, acts, ctx) {
     if (c[a] === 'special') {  // 必殺への唯一の対抗手段
       o.type = 'specialGuarded'; o.winner = g; o.guardOk[g] = true; o.kiaiGain[g] += CONFIG.guardRefund;
       const spA = SPECIALS[charOf(F[a]).special];
-      addHit(a, specialDamage(F[a], acts[a].kiai, F[1 - a]) * (spA.guardRatio != null ? spA.guardRatio : CONFIG.specialGuardRatio), 'main', 'special');
+      addHit(a, specialDamage(F[a], acts[a].kiai, F[1 - a]) * (spA.guardRatio != null ? spA.guardRatio : CONFIG.specialGuardRatio), 'main', 'special', true);
       misfire(a);
       return o;
     }
@@ -631,12 +631,12 @@ function outcomeCore(st, acts, ctx) {
     if (skA && skA.guardPush) { o.buffNext[g] = { takenMul: 1, pow: -skA.guardPush }; note(g, `次ターン 攻勢 -${skA.guardPush}`, 1); }   // 押し上げ返し：ガードされた時だけ押し返す
     if (skA && skA.fx === 'guardPierce') {   // 穿ち上げ：ガードの成否に関係なく貫く
       o.type = 'guardThrough'; o.pierced = true; o.winner = a;
-      addHit(a, F[g].maxHp * skA.piercePct, 'main', c[a]);
+      addHit(a, F[g].maxHp * skA.piercePct, 'main', c[a], an.pow[g] >= an.pow[a]);
       land(a, c[a]);
       return o;
     }
     { const trP = charOf(F[a]).trait;   // チュウゴク：封印中の相手のガードは、通常より多く通る
-      if (trP && trP.sealPierce && F[g].cmdSeal && F[g].cmdSeal.n > 0) { o.type = 'guardThrough'; o.winner = a; note(g, 'ガード 貫通', 1); addHit(a, atkDamage(F[a], c[a], 0, F[1 - a], acts[1 - a]) * trP.sealPierce, 'main', c[a]); land(a, c[a]); return o; } }
+      if (trP && trP.sealPierce && F[g].cmdSeal && F[g].cmdSeal.n > 0) { o.type = 'guardThrough'; o.winner = a; note(g, 'ガード 貫通', 1); addHit(a, atkDamage(F[a], c[a], 0, F[1 - a], acts[1 - a]) * trP.sealPierce, 'main', c[a], an.pow[g] >= an.pow[a]); land(a, c[a]); return o; } }
     if (an.pow[g] >= an.pow[a]) {
       o.type = 'guardOk'; o.winner = g; o.guardOk[g] = true; o.kiaiGain[g] += CONFIG.guardRefund;
       const trA = charOf(F[a]).trait;   // 剛圧：完全に受け止められても削る
