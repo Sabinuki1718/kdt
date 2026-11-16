@@ -2,6 +2,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>King of Dorcus titanus</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0908">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="img/icon_180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Noto+Serif+JP:wght@700;900&family=Noto+Sans+JP:wght@400;500;700&family=Oswald:wght@500;700&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500;1,600&family=Shippori+Mincho:wght@500;700;800&display=swap">
@@ -844,6 +850,12 @@ body.lp .di-sci { display: none; }
 body.lp .di-spd { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 body.lp .vslot { min-height: 70px; }
 body.lp .dinfo.zk { max-height: 58%; }
+body.lp .dinfo.zk.zsk { max-height: none; flex: 1; min-height: 0; overflow-y: auto; }   /* 技図鑑：標本がないので枠いっぱいに使う */
+body.lp .zsk .zk-stats div { flex-direction: row; justify-content: center; gap: 6px; padding: 3px 4px; } body.lp .zsk .zk-stats b { font-size: 16px; }
+body.lp #screen-zukan[data-zm="skill"] .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); }   /* 解説を読みやすく、説明欄を広めに */
+body.lp .zsk .zk-desc { font-size: 11.5px; line-height: 1.5; } body.lp .zsk .zk-tip { padding: 6px 8px 6px 6px; } body.lp .zsk .zk-tip .hface.sm { width: 38px; }
+.dinfo.zk.zsk.more::after { content: '▼ 下にスクロールで続き'; position: sticky; bottom: -1px; display: block; margin-top: -30px; padding: 22px 0 4px; text-align: center; font-family: var(--f-body); font-size: 11px; color: var(--gold-hi); background: linear-gradient(rgba(16,14,12,0), rgba(16,14,12,.95) 55%); pointer-events: none; flex: none; }
+body.lp .zsk .di-name { font-size: 15px; } body.lp .zsk .zk-who { font-size: 11.5px; line-height: 1.55; }
 body.lp #zTitle { display: none; } body.lp .seg.zmode button { min-width: 0; padding: 6px 10px; font-size: 12.5px; }
 body.lp .zctl { left: 4px; right: 4px; bottom: 4px; } body.lp .zctl .seg button, body.lp .zcmpbtn { padding: 3px 9px; font-size: 11px; }
 body.lp .zcmp { font-size: 11px; gap: 2px 6px; } body.lp .zc-h { font-size: 11.5px; padding: 3px 6px; }
@@ -2121,6 +2133,16 @@ function layoutMode() {
 }
 function resize() { layoutMode(); const w = APP_W, h = APP_H; renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 58 : 40; camera.updateProjectionMatrix(); }
 addEventListener('orientationchange', () => setTimeout(resize, 200));
+/* スマホ：タップしたときに全画面＋横向き固定にする（対応していない端末では、縦持ちのときに画面ごと90°回して横画面で表示する） */
+const FS_OK = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+function goFullLandscape() {
+  if (!matchMedia('(pointer: coarse)').matches || !FS_OK) return;
+  if (document.fullscreenElement || document.webkitFullscreenElement) return;
+  const el = document.documentElement, rq = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : el.webkitRequestFullscreen();
+  Promise.resolve(rq).then(() => screen.orientation && screen.orientation.lock ? screen.orientation.lock('landscape') : null).catch(() => {}).finally(() => setTimeout(resize, 300));
+}
+addEventListener('pointerup', goFullLandscape, true);   // 最初のタップで全画面に（自分で解除しても、次のタップでまた全画面に戻る）
+document.addEventListener('fullscreenchange', () => setTimeout(resize, 300));
 addEventListener('resize', resize); resize();
 function loop() {
   requestAnimationFrame(loop);
@@ -7427,6 +7449,9 @@ function renderSkillZukan() {
     <div class="zk-who"><span>こんな虫におすすめ</span>${tip.bug}</div>
     <div class="zk-who"><span>こんな戦略におすすめ</span>${tip.plan}</div>` : ''}
     <div class="zk-who"><span>補足</span>攻勢・威力は技そのものの値です。実戦では、体格（戦闘力160以上で攻勢+1）・内歯の得意／省エネ・型による補正が加わります。</div>`;
+  const zi = $('#zInfo'); zi.scrollTop = 0;
+  const more = () => zi.classList.toggle('more', zi.scrollHeight - zi.scrollTop - zi.clientHeight > 6);
+  zi.onscroll = more; requestAnimationFrame(more);
   const tf = $('#zkTipFace'); if (tf) { const [c, r] = FACE[tip.f] || FACE.normal; tf.style.backgroundPosition = `${(c / 3 * 100).toFixed(3)}% ${r / 2 * 100}%`; }
 }
 function renderZukan() {

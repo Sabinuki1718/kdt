@@ -1,0 +1,11 @@
+{
+  "name": "King of Dorcus titanus",
+  "short_name": "KDT",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0a0908",
+  "theme_color": "#0a0908",
+  "icons": [{ "src": "img/icon_512.png", "sizes": "512x512", "type": "image/png" }, { "src": "img/icon_192.png", "sizes": "192x192", "type": "image/png" }]
+}
