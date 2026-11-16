@@ -86,7 +86,7 @@ const CHARS = {
               blurb: '分厚い体と太い大アゴ。攻防一体で隙がない、最強候補のヒラタ。',
               note: 'スマトラ島に分布する重量級の亜種。重厚な体躯と力強い大アゴを持ち、とりわけたくましい。',
               model: { mandLen: 1.4, curve: 0.13, headW: 1.12 } },
-  bengkulu: { name: 'スマトラオオヒラタ（ベンクール）', epithet: '不屈の黒鋼', short: 'ベンクール', sci: 'Dorcus titanus yasuokai', range: 'インドネシア・スマトラ島南西部（ベンクール）',
+  bengkulu: { name: 'スマトラオオヒラタ（ベンクール）', epithet: '不退の黒鋼', short: 'ベンクール', sci: 'Dorcus titanus yasuokai', range: 'インドネシア・スマトラ島南西部（ベンクール）',
               rating: 180, stype: 'stamina', tooth: 'up', special: 'bengkulu',
               blurb: '分厚い体と太い大アゴを持つスマトラオオヒラタの産地違い。持久戦に強い。',
               note: 'スマトラ島南西部、ベンクール産のスマトラオオヒラタ。本産地は内歯が上がる傾向がある。',

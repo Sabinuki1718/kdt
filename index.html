@@ -166,9 +166,9 @@ body:has(#reveal:not([hidden])) .chips, body:has(#reveal:not([hidden])) .skills,
 .cmd.special:disabled .cn::after, .cmd.up:disabled .cn::after, .cmd.down:disabled .cn::after { content: ' 🔒︎'; font-size: 12px; }
 
 #meter { pointer-events: auto; width: 100%; max-width: 620px; background: var(--panel); border: 1px solid var(--line); padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 8px; }
-#meter .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-#meter .top .what { font-family: var(--f-disp); font-weight: 900; font-size: 16px; }
-#meter .top .pw { font-family: var(--f-num); font-size: 14px; color: var(--muted); }
+#meter .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: nowrap; height: 26px; }   /* 省エネ表示の出入りで高さが変わらないよう1行固定 */
+#meter .top .what { font-family: var(--f-disp); font-weight: 900; font-size: 16px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#meter .top .pw { font-family: var(--f-num); font-size: 14px; color: var(--muted); flex: none; white-space: nowrap; line-height: 26px; }
 #meter .top .pw b { color: var(--gold-hi); font-size: 20px; }
 #mcells { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; }
 #mcells i { height: 34px; display: grid; place-items: center; font-family: var(--f-num); font-weight: 700; font-style: normal; font-size: 15px; background: #16181b; border: 1px solid #33383e; color: #555b62; transform: skewX(-12deg); }
@@ -180,6 +180,7 @@ body:has(#reveal:not([hidden])) .chips, body:has(#reveal:not([hidden])) .skills,
 .btn.primary { background: linear-gradient(#f1d27f, #b48324); color: #1d1406; border-color: #ffe7a6; font-family: var(--f-disp); font-size: 16px; flex: 1; }
 .btn:hover { filter: brightness(1.15); }
 #meter .save { font-size: 12px; color: #9fe0a8; margin-right: 6px; }
+#mcells i { box-sizing: border-box; }
 .role { font-family: var(--f-body); font-size: 10px; font-weight: 700; letter-spacing: .05em; padding: 0 5px; margin-left: 6px; border: 1px solid currentColor; vertical-align: 2px; }
 .role.r-fit { color: #ffcf6a; } .role.r-off { color: #8fe0a0; } .role.r-center { color: #c9d2db; }
 .stk { position: absolute; top: 5px; right: 16px; font-family: var(--f-body); font-size: 10px; font-weight: 700; padding: 0 5px; background: #4b3b16; color: #ffe2a0; white-space: nowrap; }
