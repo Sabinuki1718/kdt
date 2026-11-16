@@ -4,7 +4,7 @@
 'use strict';
 
 const CONFIG = {
-  ruleVer: 5,             // 対戦ルールの版。数値や処理を変えたら上げる（kdt_master.json と同じ値に）。通信対戦は同じ版どうしだけ
+  ruleVer: 6,             // 対戦ルールの版。数値や処理を変えたら上げる（kdt_master.json と同じ値に）。通信対戦は同じ版どうしだけ
   kiaiMax: 10,
   kiaiStart: 4,
   turnTime: 15,          // 秒
@@ -289,8 +289,8 @@ const SKILLS = {
 const SPECIALS = {
   guillotine: { name: '巨顎断頭', ruby: 'ギガントギロチン', pow: 9, dmg: 46, desc: '超重量の締め上げ。合計威力は全種最高。' },
   teiou: { name: '帝王の裁き', ruby: 'エンペラー・ジャッジメント', pow: 9, dmg: 40, fx: 'guardBreak', desc: '命中すると、相手は次のターン ガードできない。' },
-  aceh: { name: '黒鋼圧壊', ruby: 'アイアンブレイカー', pow: 9, dmg: 40, fx: 'pierce', guardRatio: 0.4, desc: 'ガードされても威力の40%が通る。' },
-  bengkulu: { name: '黒鋼轟砕', ruby: 'アイアンクラッシャー', pow: 8, dmg: 38, fx: 'pierce', guardRatio: 0.6, desc: 'ガードされても威力の60%が通る。' },
+  aceh: { name: '黒鋼圧壊', ruby: 'アイアンブレイカー', pow: 9, dmg: 44, fx: 'pierce', guardRatio: 0.3, desc: 'ガードされても威力の30%が通る。' },
+  bengkulu: { name: '黒鋼轟砕', ruby: 'アイアンクラッシャー', pow: 8, dmg: 36, fx: 'pierce', guardRatio: 0.4, desc: 'ガードされても威力の40%が通る。' },
   sulawesi: { name: '狂戦士の双牙', ruby: 'バーサーク・デュアルファング', pow: 8, dmg: 52, fx: 'berserk', recoilTaken: 1.3,
                 desc: '威力はトップクラス。ただしガードされる／必殺同士で打ち負けると、次のターン ガード不可＆被ダメージ1.3倍。' },
   marinduque: { name: '海神の重圧', ruby: 'オケアノス・ヘヴィプレス', pow: 8, dmg: 36, fx: 'guardStock', desc: '命中時、一度だけ2回連続でガード可能な権利が得られる（権利は最大1つまで）。' },
