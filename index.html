@@ -6037,7 +6037,7 @@ function playerInput(limitOv, elapsed = 0) {
     const limit = limitOv ?? (f.debuff.timeCut ? C.turnTimeShort : C.turnTime);
     const stepMs = C.meterStepMs * (f.debuff.meterFast ? C.meterFastMul : 1);
     let phase = 'cmd', chosen = null, cur = 0, dir = 1, mt = null, done = false;
-    let t0 = performance.now() - elapsed * 1000;
+    let t0 = gameNow() - elapsed * 1000;
     buildCmds();
     $('#deck').hidden = false; $('#meter').hidden = true;
     $('#timer').classList.toggle('short', !!f.debuff.timeCut);
@@ -6080,7 +6080,7 @@ function playerInput(limitOv, elapsed = 0) {
     input = api;
     const tick = setInterval(() => {
       if (!$('#modal').hidden && !online) { t0 += 50; return; }   // 確認ダイアログ中は時間を止める（通信対戦では止めない）
-      const left = Math.max(0, limit - (performance.now() - t0) / 1000);
+      const left = Math.max(0, limit - (gameNow() - t0) / 1000);
       $('#tSec').textContent = Math.ceil(left); $('#tBar').style.transform = `scaleX(${left / limit})`;
       if (left <= 0) {
         if (phase === 'kiai') finish(cur, true);
@@ -6212,7 +6212,7 @@ function mashGame(acts) {
     let p = 0, c = 0, done = false, cTaps = 0, final = false;   // p, c は表示用（加護の重み込み）。決着は連打数（taps / cTaps）を K.mashWinner に渡して決める
     const w0 = K.mashWeight(st.f[0]), w1 = K.mashWeight(st.f[1]);   // 金蚉の加護
     const rate = C.cpuMashRate[0] + Math.random() * (C.cpuMashRate[1] - C.cpuMashRate[0]);
-    const t0 = performance.now(); let last = t0;
+    const t0 = gameNow(); let last = t0;
     setShot(t => { const cp = contactPt(); return [V(cp.x + Math.sin(t * 3) * 0.2, 0.4, 3.8), V(cp.x, 0.4, 0)]; }, 8);
     banner('競り合い！', 'gold', 900);
     const draw = () => {
@@ -6227,7 +6227,7 @@ function mashGame(acts) {
     mashTap = tap;
     mashAbort = () => { done = true; mashTap = null; mashAbort = null; el.hidden = true; resolve(-1); };
     const tick = () => {
-      const now = performance.now(), el2 = (now - t0) / 1000;
+      const now = gameNow(), el2 = (now - t0) / 1000;
       if (!online && Math.random() < rate * (now - last) / 1000 * (0.7 + Math.random() * 0.6)) { c += w1; cTaps++; draw(); }
       last = now; shake(0.12);
       $('#mashT').textContent = Math.max(0, C.mashTime - el2).toFixed(1);
@@ -6350,34 +6350,53 @@ $('#iskip').onclick = introAdvance;
    BGM（バトル外 / バトル / バトル後半）
    ===================================================================== */
 const BGM = (() => {
+  // 曲は10分前後と長いので、全部を展開せず <audio> で少しずつ読み込む。音は Web Audio の GainNode に通して音量を変える
+  // （iPhone は <audio> の volume が効かない。Web Audio に通すと、消音スイッチも効果音と同じ扱いになる）
   const src = { title: 'audio/title.mp3', world: 'audio/world.mp3', battle1: 'audio/battle1.mp3', battle2: 'audio/battle2.mp3' };
-  const tr = {}; for (const k in src) { const a = new Audio(src[k]); a.loop = true; a.preload = 'auto'; a.volume = 0; tr[k] = a; }
-  let cur = null, want = 'title', unlocked = false, on = true;
+  const tr = {}; for (const k in src) { const a = new Audio(src[k]); a.loop = true; a.preload = 'auto'; a.volume = 0; tr[k] = { a, g: null, fid: 0 }; }
+  let cur = null, want = 'title', unlocked = false, on = true, ctx = null, hidden = false;
   try { on = localStorage.getItem('kdt-bgm') !== 'off'; } catch (e) { }
   const VOL = 0.55;
-  const fadeId = new Map();
-  function fade(a, to, ms) {
-    const id = (fadeId.get(a) || 0) + 1; fadeId.set(a, id);
-    const from = a.volume, t0 = performance.now();
-    const step = () => { if (fadeId.get(a) !== id) return; const k = Math.min(1, (performance.now() - t0) / ms); a.volume = from + (to - from) * k; if (k < 1) requestAnimationFrame(step); else if (to === 0) a.pause(); };
+  function hook() {   // 効果音と同じ AudioContext に曲をつなぐ（タップの中で1回だけ）
+    if (ctx || !SE.ctx) return; ctx = SE.ctx;
+    for (const k in tr) { const t = tr[k]; try { const n = ctx.createMediaElementSource(t.a), g = ctx.createGain(); g.gain.value = 0; n.connect(g); g.connect(ctx.destination); t.g = g; t.a.volume = 1; } catch (e) { t.g = null; } }
+  }
+  const volOf = t => t.g ? t.g.gain.value : t.a.volume;
+  function fade(t, to, ms) {
+    const id = ++t.fid;
+    if (t.g) {
+      const p = t.g.gain, now = ctx.currentTime;
+      p.cancelScheduledValues(now); p.setValueAtTime(p.value, now); p.linearRampToValueAtTime(to, now + ms / 1000);
+      if (to === 0) setTimeout(() => { if (t.fid === id) t.a.pause(); }, ms + 60);
+      return;
+    }
+    const from = t.a.volume, t0 = performance.now();   // Web Audio が使えないときの予備
+    const step = () => { if (t.fid !== id) return; const k = Math.min(1, (performance.now() - t0) / ms); t.a.volume = from + (to - from) * k; if (k < 1) requestAnimationFrame(step); else if (to === 0) t.a.pause(); };
     requestAnimationFrame(step);
   }
   function apply() {
-    if (!unlocked) return;
-    if (on && duckK < 1 && cur && cur !== want && tr[cur] && !tr[cur].paused) return;
-    for (const k in tr) if (k !== want || !on) { if (!tr[k].paused) fade(tr[k], 0, 700); }
+    if (!unlocked || hidden) return;
+    if (on && duckK < 1 && cur && cur !== want && tr[cur] && !tr[cur].a.paused) return;
+    for (const k in tr) if (k !== want || !on) { if (!tr[k].a.paused) fade(tr[k], 0, 700); }
     if (!on) { cur = null; return; }
-    const a = tr[want];
-    if (cur !== want) { if (want !== 'world') a.currentTime = 0; cur = want; }
-    if (a.paused) { a.volume = 0; a.play().catch(() => { }); }
-    fade(a, VOL * duckK, 900);
+    const t = tr[want];
+    if (cur !== want) { if (want !== 'world') t.a.currentTime = 0; cur = want; }
+    if (t.a.paused) { if (t.g) t.g.gain.value = 0; else t.a.volume = 0; t.a.play().catch(() => { }); }
+    fade(t, VOL * duckK, 900);
   }
   let duckK = 1;
-  function duck(d, ms = 600) { duckK = d ? 0.12 : 1; if (!d && cur && cur !== want) { apply(); return; } if (cur && tr[cur] && !tr[cur].paused) fade(tr[cur], VOL * duckK, ms); }
+  function duck(d, ms = 600) { duckK = d ? 0.12 : 1; if (!d && cur && cur !== want) { apply(); return; } if (cur && tr[cur] && !tr[cur].a.paused) fade(tr[cur], VOL * duckK, ms); }
   function play(k) { if (want === k) return; want = k; apply(); }
-  function unlock() { if (unlocked) return; unlocked = true; apply(); }
+  function unlock() { hook(); if (unlocked) { kick(); return; } unlocked = true; apply(); }
+  function kick() { if (on && unlocked && !hidden && cur && tr[cur].a.paused) apply(); }   // 復帰後に止まったままなら、次のタップで鳴らし直す
+  function setHidden(h) {   // 画面が裏に回ったら止める（鳴り続けない・通知に残らない）、戻ったら再開
+    hidden = h;
+    if (h) { for (const k in tr) { tr[k].fid++; tr[k].a.pause(); } return; }
+    if (cur) { const t = tr[cur]; if (t.g) t.g.gain.value = 0; else t.a.volume = 0; }
+    apply();
+  }
   function toggle() { on = !on; try { localStorage.setItem('kdt-bgm', on ? 'on' : 'off'); } catch (e) { } cur = null; apply(); return on; }
-  return { play, unlock, toggle, duck, get on() { return on; } };
+  return { play, unlock, toggle, duck, setHidden, get on() { return on; } };
 })();
 
 /* 効果音：すべて Web Audio で合成（ファイル不要） */
@@ -6385,8 +6404,9 @@ const SE = (() => {
   let ctx = null, master = null, fbus = null, nb = null, on = true;
   try { on = localStorage.getItem('kdt-se') !== 'off'; } catch (e) { }
   function init() {
-    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+    if (ctx) { if (ctx.state !== 'running' && !document.hidden) ctx.resume().catch(() => { }); return; }   // suspended だけでなく、iPhone の interrupted（電話・アプリ切替のあと）からも戻す
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'ambient'; } catch (e) { }   // iPhone：消音スイッチに従う（BGM も効果音も同じ扱い）
     ctx = new AC();
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 4; comp.connect(ctx.destination);
     master = ctx.createGain(); master.gain.value = 0.8; master.connect(comp);
@@ -6474,10 +6494,28 @@ const SE = (() => {
     },
     toggle() { on = !on; try { localStorage.setItem('kdt-se', on ? 'on' : 'off'); } catch (e) { } return on; },
     get on() { return on; },
+    get ctx() { return ctx; },
   };
 })();
-addEventListener('pointerdown', () => { BGM.unlock(); SE.init(); }, { capture: true });
-addEventListener('keydown', () => { BGM.unlock(); SE.init(); }, { capture: true });
+addEventListener('pointerdown', () => { SE.init(); BGM.unlock(); }, { capture: true });   // 毎回呼ぶ：割り込みのたびに音が止まることがあるため
+addEventListener('keydown', () => { SE.init(); BGM.unlock(); }, { capture: true });
+/* 画面が裏に回ったとき：音を止め、CPU対戦の制限時間も止める（戻った瞬間に時間切れにならないように） */
+let hiddenAt = -1, hiddenTotal = 0;
+function gameNow() { const now = performance.now(); return online ? now : now - hiddenTotal - (hiddenAt >= 0 ? now - hiddenAt : 0); }   // CPU対戦の時計（裏に回っていた時間を除く）。通信対戦はサーバーの時計に合わせるので除かない
+document.addEventListener('visibilitychange', () => {
+  const c = SE.ctx;
+  if (document.hidden) {
+    hiddenAt = performance.now(); BGM.setHidden(true);
+    if (c && c.state === 'running') c.suspend().catch(() => { });
+    return;
+  }
+  if (hiddenAt >= 0) { hiddenTotal += performance.now() - hiddenAt; hiddenAt = -1; }
+  if (c) {
+    const t0 = c.currentTime; c.resume().catch(() => { });
+    setTimeout(() => { if (c.state === 'running' && c.currentTime === t0) c.suspend().then(() => c.resume()).catch(() => { }); }, 500);   // iPhone：running なのに時間が進まないことがある
+  }
+  BGM.setHidden(false);
+});
 function syncBgmBtn() { const b = $('#bgmBtn'); b.textContent = BGM.on ? '♪ BGM ON' : '♪ BGM OFF'; b.setAttribute('aria-pressed', BGM.on); const b2 = $('#bgmBtn2'); b2.textContent = BGM.on ? '♪ ON' : '♪ OFF'; b2.setAttribute('aria-pressed', BGM.on); }
 $('#bgmBtn').onclick = $('#bgmBtn2').onclick = () => { BGM.toggle(); syncBgmBtn(); };
 function syncSeBtn() { $('#seBtn').textContent = SE.on ? 'SE ON' : 'SE OFF'; $('#seBtn').setAttribute('aria-pressed', SE.on); $('#seBtn2').textContent = SE.on ? 'SE' : 'SE OFF'; $('#seBtn2').setAttribute('aria-pressed', SE.on); }
