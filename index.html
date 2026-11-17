@@ -1206,6 +1206,11 @@ body.lp #tutHint { top: 92px; width: min(420px, 56%); padding: 5px 8px 5px 5px; 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+<script>
+/* iPhone・Safari：r128 の GLTFLoader は createImageBitmap で画像を読むが、Safari ではテクスチャが黒くなる → ふつうの画像読み込みにする */
+window.KDT_IOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+if (window.THREE && (KDT_IOS || /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent))) THREE.ImageBitmapLoader = THREE.TextureLoader;
+</script>
 <script src="engine.js"></script>
 <script>
 (() => {
@@ -1487,8 +1492,20 @@ function addSilSwitch(m) {
   };
   m.needsUpdate = true;
 }
+// iPhone はメモリが少なく、全種の虫を読み込むとページが落ちることがあるので、虫の画像を 512px までに縮める
+const TEX_MAX = window.KDT_IOS ? 512 : 0, _shrunk = new WeakSet();
+function shrinkTex(t) {
+  if (!t || _shrunk.has(t)) return; _shrunk.add(t);
+  const im = t.image, w = im && (im.naturalWidth || im.width), h = im && (im.naturalHeight || im.height);
+  if (!w || !h || Math.max(w, h) <= TEX_MAX) return;
+  const k = TEX_MAX / Math.max(w, h), c = document.createElement('canvas');
+  c.width = Math.round(w * k); c.height = Math.round(h * k);
+  try { c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); } catch (e) { return; }
+  if (im.close) im.close();
+  t.image = c; t.needsUpdate = true;
+}
 function prepGLB(g) {
-  g.scene.traverse(o => { if (o.isMesh) (Array.isArray(o.material) ? o.material : [o.material]).forEach(addSilSwitch); });
+  g.scene.traverse(o => { if (o.isMesh) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { addSilSwitch(m); if (TEX_MAX && m) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap']) shrinkTex(m[k]); }); });
   const holder = new THREE.Group(), m = g.scene; holder.add(m); m.rotation.y = Math.PI / 2; holder.updateMatrixWorld(true);
   g.userData.box = new THREE.Box3().setFromObject(holder); holder.remove(m); m.rotation.y = 0;
   // 大アゴの閉じる向き：Pinch の中で最も閉じたキーの回転（レスト基準）
