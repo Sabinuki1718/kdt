@@ -168,6 +168,11 @@ body:has(#reveal:not([hidden])) .chips, body:has(#reveal:not([hidden])) .skills,
 .cmd::before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, var(--c), transparent 60%); opacity: .22; pointer-events: none; }
 .cmd:hover:not(:disabled) { filter: brightness(1.25); transform: translateY(-2px); }
 .cmd.sel { filter: brightness(1.35); box-shadow: inset 0 0 0 2px var(--c); }
+/* チュートリアル：博士のおすすめ（光るボタン・気合の目安） */
+@keyframes tutGlow { 0%,100% { box-shadow: inset 0 0 0 2px #ffd76a, inset 0 0 10px rgba(255,215,106,.35); filter: brightness(1.1); } 50% { box-shadow: inset 0 0 0 3px #fff3c4, inset 0 0 26px rgba(255,215,106,.85); filter: brightness(1.45); } }
+.cmd.tut-glow { animation: tutGlow 1s ease-in-out infinite; }
+.cmd.tut-glow::after { content: '博士のおすすめ'; position: absolute; right: 14px; bottom: 3px; font-size: 10px; font-weight: 700; color: #1c1308; background: #ffd76a; padding: 0 6px; letter-spacing: .05em; pointer-events: none; }
+#mcells i.tg { border-color: #ffd76a; box-shadow: inset 0 -4px 0 #ffd76a; }
 .cmd:disabled { cursor: not-allowed; filter: grayscale(.9) brightness(.55); }
 .cmd kbd { grid-row: span 3; font-family: var(--f-num); font-size: 22px; font-weight: 700; color: var(--c); }
 .cmd .cn { font-family: var(--f-disp); font-weight: 900; font-size: 17px; letter-spacing: .06em; }
@@ -6056,6 +6061,7 @@ function playerInput(limitOv, elapsed = 0) {
     let phase = 'cmd', chosen = null, cur = 0, dir = 1, mt = null, done = false;
     let t0 = gameNow() - elapsed * 1000;
     buildCmds();
+    if (tutWant) { const b = $('#cmds').querySelector(`.cmd[data-cmd="${tutWant.cmd}"]`); if (b && !b.disabled) b.classList.add('tut-glow'); }
     $('#deck').hidden = false; $('#meter').hidden = true;
     $('#timer').classList.toggle('short', !!f.debuff.timeCut);
     const notes = [];
@@ -6065,6 +6071,7 @@ function playerInput(limitOv, elapsed = 0) {
     $('#tNote').textContent = notes.length ? notes.join('・') : 'コマンドを選択';
     $('#tNote').className = 'note' + (notes.length ? ' warn' : '');
     const cells = $('#mcells'); cells.innerHTML = Array.from({ length: 11 }, (_, k) => `<i class="${k <= f.kiai ? 'av' : ''}">${k}</i>`).join('');
+    const tg = () => cells.querySelectorAll('i').forEach((el, k) => el.classList.toggle('tg', !!tutWant && chosen === tutWant.cmd && k >= tutWant.lo && k <= tutWant.hi));   // 博士の目安の気合
     const draw = () => {
       cells.querySelectorAll('i').forEach((el, k) => { el.classList.toggle('lit', k > 0 && k <= cur); el.classList.toggle('cur', k === cur); });
       $('#mPow').textContent = basePowFor(f, chosen) + cur;
@@ -6085,7 +6092,7 @@ function playerInput(limitOv, elapsed = 0) {
         $('#cmds').querySelectorAll('.cmd').forEach(b => b.classList.toggle('sel', b.dataset.cmd === cmd));
         if (f.kiai === 0) { finish(0); return; }
         phase = 'kiai'; cur = 0; dir = 1;
-        $('#meter').hidden = false; $('#mWhat').textContent = `${K.CMD_LABEL[cmd]}${cmd === 'up' || cmd === 'down' ? '：' + K.skillOf(f, cmd).name : ''}`;
+        tg(); $('#meter').hidden = false; $('#mWhat').textContent = `${K.CMD_LABEL[cmd]}${cmd === 'up' || cmd === 'down' ? '：' + K.skillOf(f, cmd).name : ''}`;
         clearInterval(mt);
         mt = setInterval(() => { cur += dir; if (cur >= f.kiai) { cur = f.kiai; dir = -1; } else if (cur <= 0) { cur = 0; dir = 1; } draw(); }, stepMs);
         draw();
@@ -6570,11 +6577,12 @@ async function startMatchBody(rematch, my) {
   pendingAbort = false;
   const other = online ? netStart.ch : tutCtx ? tutCtx.opp : rematch && lastOpp ? lastOpp : pickOpponent();
   lastOpp = other;
-  cpuLoad = online ? { up: netStart.up, down: netStart.down } : tutCtx ? K.cpuLoadout(other) : rematch && cpuLoad && st && st.f[1].charId === other ? cpuLoad : K.cpuLoadout(other);
+  cpuLoad = online ? { up: netStart.up, down: netStart.down } : tutCtx ? (tutCtx.exam ? K.cpuLoadout(other) : { up: 'tekkeKachiage', down: 'oshitsubushi' }) : rematch && cpuLoad && st && st.f[1].charId === other ? cpuLoad : K.cpuLoadout(other);
   if (!online && !tutCtx && FORCE_CPU && FORCE_CPU.ch === other) cpuLoad = { up: FORCE_CPU.up || cpuLoad.up, down: FORCE_CPU.down || cpuLoad.down };   // 調整用の固定
   st = K.newBattle(K.makeFighter(setup.char, setup.up, setup.down), K.makeFighter(other, cpuLoad.up, cpuLoad.down));
   if (tutCtx && tutCtx.playerSp) st.f[0].sp = C.specialMax;
   if (tutCtx && tutCtx.oppSp) st.f[1].sp = tutCtx.oppSp;
+  if (tutCtx && tutCtx.kiai) [st.f[0].kiai, st.f[1].kiai] = tutCtx.kiai;
   document.body.classList.toggle('tut-on', !!tutCtx);
   const useKana = st.f.some(f => /^midori/.test(f.up) || /^midori/.test(f.down));   // カナブンを呼ぶ技があれば先に読み込む
   $('#loading').hidden = false;   // モデルの読み込み中は反応が見えるように
@@ -6610,8 +6618,12 @@ async function runTurn() {
   if (st.f[0].kanaU > 0) { const d = await playerDeclare(); if (!running || !d) return; st.f[0].decl = d; renderHUD(); await KANA.say(0); }
   let cpuAct = K.cpuDecide(st, 1, { temp, bluff: K.declaring(st.f[1]) && Math.random() < C.ai.bluff });  // 公開情報のみで決定（宣言中はときどき嘘をつく）
   if (tutCtx && tutCtx.cpu === 'guardy' && !st.f[1].guardLocked && Math.random() < 0.5) cpuAct = { cmd: 'guard', kiai: Math.floor(Math.random() * Math.min(4, st.f[1].kiai + 1)) };
-  if (tutCtx) showTutHint();
-  const pAct = await playerInput();
+  const plan = tutCtx && tutCtx.script ? tutPlan() : null;   // チュートリアル：相手の行動は台本どおり、博士がとるべき行動を指示する
+  if (plan) cpuAct = plan.cpu;
+  if (tutCtx) showTutHint(plan);
+  tutWant = plan && plan.cmd ? plan : null;
+  const pAct = await playerInput(tutCtx && !tutCtx.exam ? 30 : undefined);
+  tutWant = null;
   if (tutCtx) $('#tutHint').hidden = true;
   if (!running) return;
   const acts = [pAct, cpuAct];
@@ -6781,7 +6793,7 @@ const LESSONS = [
     { f: 'serious', t: '攻勢値が高い技は通りやすい。じゃが、威力は低い傾向にある。<b>攻勢が高ければよい、というわけではない</b>のじゃ。' },
     { f: 'idea', t: '確実に通して小さく削るか、気合で攻勢を補って大きな一撃を狙うか。<b>使い分け</b>が勝負を分けるぞ。' },
     { v: { deck: true, z: '#cmds', hl: [['.cmd.up', '攻勢が高い'], ['.cmd.down', '威力が高い']] }, f: 'guide', t: 'では実践じゃ。相手は{rival}。キミの技は、攻勢の高い<span class="u">鉄壁かち上げ</span>と、威力の高い<span class="d">押し潰し</span>。<b>3ターン</b>、両方試してみるのじゃ。' },
-    { practice: { opp: 'rival', turns: 3, diff: 'easy', hint: 'basic' } },
+    { practice: { opp: 'rival', turns: 3, diff: 'easy', hint: 'basic', script: 'basic' } },
     { v: 0, f: 'smile', t: 'どうじゃ？　攻勢値が高い方の技が通っておったじゃろう。これが全ての基本じゃ。' },
   ] },
   { id: 'l2', title: '気合の読み合い', sub: '込めるか、残すか', steps: [
@@ -6792,8 +6804,8 @@ const LESSONS = [
     { v: () => ({ deck: true, meter: fitSide(), z: '#meter', hl: [['#mcells', '1多く込めるか、1残すか']] }), f: 'idea', t: '気合を使い切ると、次のターンに困る。<b>1多く込めるか、1残すか</b>。その差で勝負が決まるのじゃ。' },
     { v: { set: (a, b) => { b.kiai = 10; }, rev: s => actsDiff(s, { cmd: 'up', kiai: 3 }, 'down', 0), z: '#reveal' }, f: 'surprise', t: '攻勢値がぴったり同じなら<b>「競り合い」</b>！　ボタン連打の勝負になるぞ。' },
     { v: () => ({ deck: true, meter: fitSide(), z: '#meter', hl: [['#mStop', '押した瞬間の値で決まる']] }), f: 'relief', t: '気合はメーターを止めて決める。急がんでよい。落ち着いて押すのじゃ。' },
-    { v: { set: (a, b) => { b.kiai = 7; }, z: '.panel.right', hl: [['.panel.right .kiai', 'ここを毎ターン見る']] }, f: 'guide', t: '実践じゃ。<b>4ターン</b>。画面上の<b>相手の残り気合</b>を毎ターン確かめてから、込める量を決めてみるのじゃ。' },
-    { practice: { opp: 'nueva', turns: 4, diff: 'easy', hint: 'kiai' } },
+    { v: { set: (a, b) => { b.kiai = 7; }, z: '.panel.right', hl: [['.panel.right .kiai', 'ここを毎ターン見る']] }, f: 'guide', t: '実践じゃ。<b>4ターン</b>。キミの気合は満タンにしておいた。画面上の<b>相手の残り気合</b>を毎ターン確かめてから、込める量を決めてみるのじゃ。' },
+    { practice: { opp: 'nueva', turns: 4, diff: 'easy', hint: 'kiai', script: 'kiai', kiai: [10, 2] } },
     { v: 0, f: 'wink', t: '相手の気合が多いときは慎重に、少ないときは強気に。読み合いの感覚がつかめたかの？' },
   ] },
   { id: 'l3', title: 'ガードの使い方', sub: '守りと攻めどき', steps: [
@@ -6803,8 +6815,8 @@ const LESSONS = [
     { v: { set: a => { a.guardLocked = true; }, deck: true, hl: [['.cmd.guard', '前のターンに使うと選べない'], ['.panel.left .chips', 'ガード不可']] }, f: 'serious', t: 'ただし！　ガードは<b>2ターン連続では使えん</b>。' },
     { v: { set: (a, b) => { b.guardLocked = true; }, z: '.panel.right', hl: [['.panel.right .chips', '相手はガード不可 → 攻めどき']] }, f: 'idea', t: 'つまり、相手がガードした次のターンは、相手は守れん。<b>攻めどき</b>じゃ！' },
     { v: { set: a => { a.guardLocked = true; }, z: '.panel.left', hl: [['.panel.left .chips', 'キミはガード不可']] }, f: 'trouble', t: '逆もしかり。キミがガードした次のターンは、相手にとっての攻めどきになる。' },
-    { v: { set: (a, b) => { b.guardLocked = true; }, hl: [['.panel.right .chips', '毎ターンここを確認']] }, f: 'guide', t: '実践じゃ。この相手はよくガードする。<b>ガードされた次のターン</b>に、思い切り攻めてみよう。<b>4ターン</b>じゃ。' },
-    { practice: { opp: 'rival', turns: 4, diff: 'easy', cpu: 'guardy', hint: 'guard' } },
+    { v: { set: (a, b) => { b.guardLocked = true; }, hl: [['.panel.right .chips', '毎ターンここを確認']] }, f: 'guide', t: '実践じゃ。守るとき、攻めるとき、わしが毎ターン指示を出す。<b>ガードした次のターン</b>に何が起きるか、よく見ておくのじゃ。<b>4ターン</b>じゃ。' },
+    { practice: { opp: 'rival', turns: 4, diff: 'easy', hint: 'guard', script: 'guard' } },
     { v: 0, f: 'wink', t: 'ガードの後の攻め、決まったかの？　「相手が守れるか」は、毎ターン必ず見るのじゃぞ。' },
   ] },
   { id: 'l4', title: '内歯と技の回し方', sub: '得意・省エネ・連続使用', steps: [
@@ -6816,7 +6828,7 @@ const LESSONS = [
     { v: () => ({ set: a => { a.lastCmd = fitSide(); a.streak = 3; }, deck: true, z: '#cmds', hl: [[`.cmd.${fitSide()} .stk`, '続けるほど攻勢・威力が落ちる']] }), f: 'serious', t: '同じ技を続けると<b>見切られて</b>、攻勢が落ちる。2回目で -1、3回目からは -2じゃ。威力も4回目から大きく落ちるぞ。' },
     { f: 'idea', t: '続けるほど競り合いで不利になる。ときどき反対の技やガードを挟んで<b>リセット</b>するのが賢い戦い方じゃ。' },
     { v: { z: '.panel.left', hl: [['.panel.left .skills', '技の得意・省エネはここにも']] }, f: 'guide', t: '実践じゃ。キミの{bug}の得意は<b>{fit}</b>。相手は内歯中央のネバービスカヤオオヒラタ。得意技を軸に、ときどき反対の技を挟んでみるのじゃ。<b>4ターン</b>じゃ。' },
-    { practice: { opp: 'nueva', turns: 4, diff: 'easy', hint: 'tooth' } },
+    { practice: { opp: 'nueva', turns: 4, diff: 'easy', hint: 'tooth', script: 'tooth' } },
     { v: 0, f: 'smile', t: '得意技で押しつつ、見切られる前に切り替える。これができれば一人前じゃ。' },
   ] },
   { id: 'l5', title: '必殺技の極意', sub: 'ガードを吐かせて撃つ', steps: [
@@ -6832,7 +6844,7 @@ const LESSONS = [
     { f: 'idea', t: 'つまり、<span class="g">ガード</span>以外にも必殺を止める方法がある、ということじゃな。知っておくと役に立つぞ。' },
     { v: { set: a => { a.sp = C.specialMax; }, rev: [{ cmd: 'special', kiai: 5 }, { cmd: 'guard', kiai: 0 }], still: true, z: '#rc0', hl: [['#rc0 .kv', '込めた気合は戻らない']] }, f: 'trouble', t: 'ただし、相手がガードを選んでいたら、込めた気合は<b>無駄に消えてしまう</b>。それがリスクじゃ。' },
     { v: { set: a => { a.sp = C.specialMax; }, deck: true, z: '#cmds', hl: [['.cmd.special', 'READY']] }, f: 'guide', t: '実践じゃ。キミの必殺ゲージは満タンにしておいた。相手のガードを誘うか、読んで撃つか。<b>5ターン</b>じゃ。' },
-    { practice: { opp: 'rival', turns: 5, diff: 'easy', playerSp: true, hint: 'special' } },
+    { practice: { opp: 'rival', turns: 5, diff: 'easy', playerSp: true, hint: 'special', script: 'special' } },
     { v: 0, f: 'smile', t: '必殺は当たったかの？　相手の必殺がたまったら、ガードで受けるか、こちらの必殺で迎え撃つか。忘れずにな。' },
   ] },
   { id: 'small', title: '小型ヒラタの強さ', sub: '必殺の回転と一芸', steps: [
@@ -6845,7 +6857,7 @@ const LESSONS = [
     { f: 'explain', t: 'さらに小型は<b>技巧</b>が高く、選べる技が多い。この話は次の講で詳しくするぞ。' },
     { f: 'wink', t: 'それに、小型には<b>一芸</b>を持つ者が多い。試合開始からいきなり必殺を撃てるイキヒラタ、気合の回復が早い気合型……。個性を活かして戦うのじゃ。' },
     { v: { op: 'hondo', set: (a, b) => { b.sp = C.specialMax; }, z: '.panel.right', hl: [['.panel.right .chips', '必殺 撃てる']] }, f: 'guide', t: '実践じゃ。相手は<b>ホンドヒラタ</b>。体は小さいが、必殺ゲージのたまりが早い。しかも必殺をガードされても、<b>90%</b>からすぐにため直してくるぞ。ガードで受けるか、必殺で迎え撃つか。<b>5ターン</b>じゃ。' },
-    { practice: { opp: 'hondo', turns: 5, diff: 'easy', oppSp: 60, hint: 'small' } },
+    { practice: { opp: 'hondo', turns: 5, diff: 'easy', oppSp: 60, hint: 'small', script: 'small' } },
     { v: 0, f: 'surprise', t: 'どうじゃ？　小さくても、必殺の回転で食らいついてきたじゃろう。侮れんのう。' },
     { f: 'serious', t: 'じゃが、最後に物を言うのはやはり<b>体の大きさ</b>じゃ。小型で大型に勝つには、そのぶん読み合いを磨かねばならん。' },
     { f: 'smile', t: '大型で押し切るもよし、小型で番狂わせを狙うもよし。それがヒラタ勝負の面白さじゃよ。' },
@@ -7177,8 +7189,69 @@ async function endTutorialBattle() {
   tutNext();
 }
 /* 実践中の助言（その場の状況を見て一言） */
-function showTutHint() {
+/* 実践バトルの台本：毎ターン、相手の行動と博士のおすすめ（コマンド・気合の目安）を決める */
+const TA = (cmd, kiai) => ({ cmd, kiai });
+const TUT_SCRIPT = {
+  basic: [
+    { cpu: TA('down', 1), want: 'up', say: 'まずは攻勢の高い<span class="u">鉄壁かち上げ</span>じゃ。光っているボタンを押して、気合を<b>{min}以上</b>込めてみよ。' },
+    { cpu: TA('up', 0), want: 'down', say: '次は威力の高い<span class="d">押し潰し</span>。攻勢が低いぶん、気合を<b>{min}以上</b>込めて競り勝つのじゃ。' },
+    { cpu: TA('down', 2), want: 'up', say: '最後はもう一度<span class="u">鉄壁かち上げ</span>。攻勢の高さで確実に通すのじゃ。気合<b>{min}以上</b>！' },
+  ],
+  kiai: [
+    { cpu: TA('up', 2), want: 'up', say: '相手の残り気合は<b>{ok}</b>。どんなに込めても{ok}までじゃ。攻勢の高い<span class="u">鉄壁かち上げ</span>なら、気合<b>{min}</b>で勝てる。込めすぎは損じゃぞ。' },
+    { cpu: TA('down', 0), want: 'up', say: '相手の残りはまた<b>{ok}</b>。ほとんど込められん。ここも気合<b>{min}</b>で十分じゃ。気合は次のためにとっておけ。' },
+    { cpu: TA('up', 9), want: 'up', say: '相手の残り気合が<b>{ok}</b>までたまった。全部込めてくるかもしれん！　気合<b>{min}以上</b>込めて上回るのじゃ。' },
+    { cpu: TA('down', 9), want: 'up', say: '相手は気合を使い切って、残り<b>{ok}</b>。キミの気合は<b>{mk}</b>。<b>{min}以上</b>込めて押し切れ！' },
+  ],
+  guard: [
+    { cpu: TA('up', 2), want: 'guard', say: '相手が攻めてくるぞ。<span class="g">ガード</span>で受けてみよ。ガード値＋気合が相手以上なら完全に防げる。気合<b>{min}以上</b>じゃ。' },
+    { cpu: TA('guard', 1), want: 'fit', max: 0, say: 'キミは前のターンにガードしたから、今ターンは<b>ガードできん</b>。相手もガードしそうな気配じゃ。気合は<b>0</b>で軽く出して、温存するのじゃ。' },
+    { cpu: TA('up', 1), want: 'fit', say: '相手はガードしたから、今ターンは<b>ガードできん</b>！　攻めどきじゃ。得意技に気合<b>{min}以上</b>！' },
+    { cpu: TA('down', 2), want: 'guard', say: 'また攻めてくるぞ。キミはもうガードできる。<span class="g">ガード</span>に気合<b>{min}以上</b>で受け止めよ！' },
+  ],
+  tooth: [
+    { cpu: TA('up', 0), want: 'fit', say: 'キミの得意は<b>{fit}</b>。光っている得意技に、気合<b>{min}以上</b>じゃ。' },
+    { cpu: TA('down', 0), want: 'fit', say: 'もう一度得意技。2回目は見切られて攻勢が<b>-1</b>になるが、気合<b>{min}以上</b>なら通るぞ。' },
+    { cpu: TA('down', 0), want: 'off', say: '3回続けると攻勢-2。ここで反対の<b>省エネ</b>技を挟むのじゃ。気合<b>{min}以上</b>。実際の消費は1少ないぞ。' },
+    { cpu: TA('up', 0), want: 'fit', say: '反対の技を挟んだから、見切りはリセットされた。得意技に戻って、気合<b>{min}以上</b>！' },
+  ],
+  special: [
+    { cpu: TA('guard', 2), want: 'fit', max: 0, say: '相手はキミの必殺を警戒して、ガードしてきそうじゃ。必殺はまだ撃たず、得意技を気合<b>0</b>で軽く出して、ガードを空振りさせるのじゃ。' },
+    { cpu: TA('up', 2), want: 'special', max: 0, say: '相手はガードしたから、今ターンは<b>ガードできん</b>！　今じゃ、<b>必殺</b>を撃て！　気合は0でかまわん。' },
+    { cpu: TA('up', 1), want: 'fit', say: '見事！　ゲージはまたためればよい。得意技に気合<b>{min}以上</b>で攻め続けるのじゃ。' },
+    { cpu: TA('down', 1), want: 'off', say: '同じ技ばかりだと見切られる。反対の技を挟むのじゃ。気合<b>{min}以上</b>。' },
+    { cpu: TA('up', 2), want: 'fit', say: '最後じゃ。得意技に気合<b>{min}以上</b>で締めくくれ！' },
+  ],
+  small: Array.from({ length: 5 }, () => st => {
+    const me = st.f[0], op = st.f[1], opRdy = K.specialReady(op), myG = K.allowedCmds(me).includes('guard'), myRdy = K.specialReady(me);
+    if (opRdy && myG) return { cpu: TA('special', 0), want: 'guard', say: '相手の必殺ゲージが満タンじゃ！　撃ってくるぞ。<span class="g">ガード</span>で受けよ。気合は0でかまわん。', max: 0 };
+    if (myRdy) return { cpu: TA('up', 1), want: 'special', max: 0, say: 'キミの必殺もたまった！　必殺は通常技に必ず打ち勝つ。撃つのじゃ！' };
+    if (opRdy) return { cpu: TA('up', 1), want: 'fit', say: '相手の必殺はまだたまったままじゃが、今は様子見のようじゃ。得意技に気合<b>{min}以上</b>で攻めよ。' };
+    return { cpu: TA('up', 1), want: 'fit', say: '小型の必殺ゲージはみるみるたまる。相手のゲージを見ながら、得意技に気合<b>{min}以上</b>で攻めよ。' };
+  }),
+};
+let tutWant = null;
+function tutPlan() {
+  const list = TUT_SCRIPT[tutCtx.script]; let e = list && list[st.turn - 1]; if (!e) return null;
+  if (typeof e === 'function') e = e(st);
+  const me = st.f[0], op = st.f[1];
+  const cmd = e.want === 'fit' || e.want === 'off' ? (['up', 'down'].find(c => K.fitOf(CH[me.charId].tooth, c) === e.want) || 'up') : e.want;
+  if (!K.allowedCmds(op).includes(e.cpu.cmd)) return null;
+  const cpu = { cmd: e.cpu.cmd, kiai: Math.min(e.cpu.kiai, op.kiai) };
+  const ok = K.allowedCmds(me).includes(cmd);
+  const wins = k => { const a = K.analyze(st, [{ cmd, kiai: k }, cpu]); return cmd === 'guard' ? a.pow[0] >= a.pow[1] : cmd === 'special' ? cpu.cmd !== 'guard' && (cpu.cmd !== 'special' || a.pow[0] > a.pow[1]) : a.pow[0] > a.pow[1]; };
+  const minOf = () => { for (let k = 0; k <= me.kiai; k++) if (wins(k)) return k; return null; };
+  let min = ok && e.max == null ? minOf() : 0;
+  while (ok && e.max == null && min == null && cpu.kiai > 0) { cpu.kiai--; min = minOf(); }   // 指示どおりにすれば勝てるよう、相手の気合を控えめにする
+  if (min == null) min = me.kiai;
+  if (min === 0 && e.max == null && cmd !== 'special' && me.kiai > 0) min = 1;
+  const lo = e.max != null ? 0 : min, hi = e.max != null ? Math.min(e.max, me.kiai) : me.kiai;
+  const say = e.say.replace(/\{min\}/g, min).replace(/\{ok\}/g, op.kiai).replace(/\{mk\}/g, me.kiai).replace(/\{fit\}/g, CH[me.charId].tooth === 'up' ? '上がり技' : '下がり技');
+  return { cpu, cmd: ok ? cmd : null, lo, hi, say };
+}
+function showTutHint(plan) {
   const me = st.f[0], op = st.f[1], h = [];
+  if (plan && plan.cmd) h.push(['guide', plan.say + '<br><small>（光っているボタンと、メーターの<b>金の線</b>の気合が目安じゃ）</small>']);
   const can = (f, c) => K.allowedCmds(f).includes(c);
   const myRdy = can(me, 'special'), opRdy = can(op, 'special'), opG = can(op, 'guard'), myG = can(me, 'guard');
   if (myRdy && opRdy) h.push(opG
