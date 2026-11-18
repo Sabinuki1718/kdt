@@ -218,6 +218,10 @@ body:has(#reveal:not([hidden])) .chips, body:has(#reveal:not([hidden])) .skills,
 #decl .kr button { font-family: var(--f-num); min-width: 34px; flex: 1 0 34px; }
 #decl .acts { display: flex; gap: 10px; }
 #decl .hint { font-size: 11px; color: var(--muted); }
+#decl .dopp { font-size: 12px; color: #f0ebe1; background: rgba(111,211,154,.12); padding: 3px 8px; } #decl .dopp b { color: #8fe8b0; }
+#decl .dstep { font-size: 11px; color: #8fe8b0; margin-bottom: -4px; }
+body.lp #decl .dstep { display: none; }
+.zk-note2 { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
 .chip.kana { border-color: #6fd39a; color: #8fe8b0; }
 .chip.kana.blue { border-color: #6fa8ff; color: #a8c8ff; }
 
@@ -273,6 +277,7 @@ body:has(#reveal:not([hidden])) .chips, body:has(#reveal:not([hidden])) .skills,
 #banner.gold, #cutin .c2, .nlogo .d, .shop-sign b, #victory .vwho, .res.win, .logo { text-shadow: none; }
 #cutin .c2, .res.win, .shop-sign b { filter: drop-shadow(0 3px 0 #000) drop-shadow(0 0 16px rgba(0,0,0,.8)); }
 #banner.blue { color: #b4d8ff; }
+#banner.sm { font-size: clamp(22px, 4.2vw, 44px); }
 @keyframes ban { 0% { opacity: 0; transform: scale(1.6); } 15% { opacity: 1; transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(.98); } }
 #cutin { position: absolute; left: 0; right: 0; top: 28%; height: 170px; pointer-events: none; display: flex; flex-direction: column; justify-content: center; padding-inline: 8%; background: linear-gradient(90deg, transparent, rgba(0,0,0,.85) 20%, rgba(0,0,0,.85) 80%, transparent); border-top: 2px solid var(--special); border-bottom: 2px solid var(--special); opacity: 0; }
 #cutin.show { animation: cut 1.1s ease-out forwards; }
@@ -1058,7 +1063,10 @@ body.lp #tutHint { top: 92px; width: min(420px, 56%); padding: 5px 8px 5px 5px; 
 
   <div id="decl" hidden>
     <h3>カナブンに宣言する</h3>
+    <div class="dopp" id="dOpp" hidden></div>
+    <div class="dstep">① 出す行動</div>
     <div class="row" id="dCmd"></div>
+    <div class="dstep">② 込める気合</div>
     <div class="row kr" id="dKiai"></div>
     <div class="acts"><button class="btn primary" id="dOk" type="button" disabled>宣言する<span class="kh"> [Space]</span></button></div>
     <div class="hint">宣言は相手に見えます。宣言通りに出すと与えるダメージ ×2。違う行動・気合（目押しのずれも含む）で攻勢負けすると、被ダメージ×1.3・気合 -1、カナブンも去ります（ガードされただけなら罰なし）。</div>
@@ -2165,7 +2173,7 @@ let APP_W = innerWidth, APP_H = innerHeight;
 const MIN_APP_H = 375;
 function layoutMode() {
   const coarse = matchMedia('(pointer: coarse)').matches;
-  const rot = coarse && innerHeight > innerWidth && innerWidth <= 900;
+  const rot = coarse && matchMedia('(hover: none)').matches && innerHeight > innerWidth && innerWidth <= 900;   // タッチ対応PCで縦長ウィンドウのときは回さない
   // 高さが足りない小さなスマホでは、画面全体を縮小して「高さ375」の配置をそのまま使う（個別の崩れを防ぐ）
   const rw = rot ? innerHeight : innerWidth, rh = rot ? innerWidth : innerHeight;
   const k = coarse && rh < MIN_APP_H ? rh / MIN_APP_H : 1;
@@ -2227,8 +2235,10 @@ function popup(side, text, cls = '', dy = 0) {
   el.style.left = Math.max(40, Math.min(APP_W - 40, x)) + 'px'; el.style.top = Math.max(APP_H * 0.18, Math.min(APP_H * 0.75, y)) + 'px';
   popLayer.appendChild(el); setTimeout(() => el.remove(), 1200);
 }
+let bannerSeq = 0;
 function banner(text, cls = 'gold', ms = 1000) {
-  const b = $('#banner'); b.className = ''; void b.offsetWidth; b.textContent = text; b.className = 'show ' + cls; b.style.animationDuration = ms + 'ms';
+  const b = $('#banner'), my = ++bannerSeq; b.className = ''; void b.offsetWidth; b.textContent = text; b.className = 'show ' + cls; b.style.animationDuration = ms + 'ms';
+  setTimeout(() => { if (bannerSeq === my) { b.textContent = ''; b.className = ''; } }, ms + 50);   // 消えたあとに文字を残さない
   return sleep(ms * 0.8);
 }
 function applyHit(h, big = false, cls) {
@@ -6074,16 +6084,17 @@ function playerInput(limitOv, elapsed = 0) {
     const tg = () => cells.querySelectorAll('i').forEach((el, k) => el.classList.toggle('tg', !!tutWant && chosen === tutWant.cmd && k >= tutWant.lo && k <= tutWant.hi));   // 博士の目安の気合
     const draw = () => {
       cells.querySelectorAll('i').forEach((el, k) => { el.classList.toggle('lit', k > 0 && k <= cur); el.classList.toggle('cur', k === cur); });
-      $('#mPow').textContent = basePowFor(f, chosen) + cur;
-      const cost = K.kiaiCost(f, { cmd: chosen, kiai: cur });
-      $('#mCost').textContent = cost !== cur ? `実消費 ${cost}（省エネ）` : '';
+      $('#mPow').textContent = K.powerOf(st, 0, [{ cmd: chosen, kiai: cur }, { cmd: 'guard', kiai: 0 }]).total;   // 体格・内歯・技の効果・連続まで全部込み
+      const cost = K.kiaiCost(f, { cmd: chosen, kiai: cur }), sk = K.skillOf(f, chosen);
+      const rd = sk && (sk.fx === 'readDown' || sk.fx === 'readUp') ? `読みが当たれば +${sk.amt || 3}` : '';
+      $('#mCost').textContent = [cost !== cur ? `実消費 ${cost}（省エネ）` : '', rd].filter(Boolean).join('・');
     };
     const finish = (k, timeout) => {
       if (done) return; done = true;
       clearInterval(mt); clearInterval(tick); input = null;
       $('#deck').hidden = true;
-      if (timeout) banner('時間切れ', 'red', 800);
-      resolve({ cmd: chosen, kiai: k });
+      if (timeout) banner(`時間切れ：${K.CMD_LABEL[chosen]}・気合${k}`, 'red sm', 1300);   // 自動で決まった行動を見せる
+      resolve(timeout ? { cmd: chosen, kiai: k, auto: true } : { cmd: chosen, kiai: k });
     };
     const api = {
       choose(cmd) {
@@ -6122,6 +6133,7 @@ function playerDeclare() {
     const f = st.f[0], allowed = K.allowedCmds(f);
     let cmd = null, kiai = null;
     const el = $('#decl'); el.hidden = false;
+    const od = st.f[1].decl; $('#dOpp').hidden = !od; if (od) $('#dOpp').innerHTML = `${OPP()}の宣言：<b>${declLabel(od)}</b>（これは相手の宣言です）`;
     const keys = { down: 1, up: 2, guard: 3, special: 4 };
     $('#dCmd').innerHTML = ['down', 'up', 'guard', 'special'].map(c => `<button type="button" data-c="${c}" ${allowed.includes(c) ? '' : 'disabled'}><span class="kh">${keys[c]} </span>${K.CMD_LABEL[c]}</button>`).join('');
     $('#dKiai').innerHTML = Array.from({ length: f.kiai + 1 }, (_, k) => `<button type="button" data-k="${k}">${k}</button>`).join('');
@@ -6129,7 +6141,7 @@ function playerDeclare() {
       el.querySelectorAll('#dCmd button').forEach(b => b.classList.toggle('sel', b.dataset.c === cmd));
       el.querySelectorAll('#dKiai button').forEach(b => b.classList.toggle('sel', +b.dataset.k === kiai));
       $('#dOk').disabled = cmd == null || kiai == null;
-      $('#dOk').innerHTML = cmd != null && kiai != null ? `「${declLabel({ cmd, kiai })}」と宣言する<span class="kh"> [Space]</span>` : '行動と気合を選ぶ';
+      $('#dOk').innerHTML = cmd != null && kiai != null ? `③「${declLabel({ cmd, kiai })}」と宣言する<span class="kh"> [Space]</span>` : cmd == null ? '① 行動を選んでください' : '② 気合を選んでください';
     };
     const api = {
       cmd(c) { if (allowed.includes(c)) { cmd = c; draw(); } },
@@ -6153,7 +6165,7 @@ function revealCard(i, act) {
   const f = st.f[i], c = K.charOf(f);
   const sk = K.skillOf(f, act.cmd);
   const name = act.cmd === 'special' ? SPC[c.special].name : act.cmd === 'guard' ? '大アゴで受ける' : sk.name;
-  const extra = (K.kiaiCost(f, act) !== act.kiai ? `（実消費${K.kiaiCost(f, act)}）` : '') + (K.streakFor(f, act.cmd) >= 2 ? ` ・連続×${K.streakFor(f, act.cmd)}` : '');
+  const extra = (K.kiaiCost(f, act) !== act.kiai ? `（実消費${K.kiaiCost(f, act)}）` : '') + (K.streakFor(f, act.cmd) >= 2 ? ` ・連続×${K.streakFor(f, act.cmd)}` : '') + (act.auto ? ' ・時間切れで自動' : '');
   return `<div class="rcard ${act.cmd} ${i ? 'r' : ''}" id="rc${i}"><span class="who">${i === 0 ? 'YOU' : OPP_TAG()}・${bShort(c)}</span><span class="cmdn">${K.CMD_LABEL[act.cmd]}</span><span class="skn">${name}</span>
   <div class="calc" id="calc${i}"></div>
   <div class="pwrow"><span class="pw" id="pw${i}">0</span></div>
@@ -6304,7 +6316,7 @@ function introCardHTML(i) {
     <span class="irow skl"><em class="dn">▼ ${SK[f.down].name}</em>${SK[f.down].desc}</span>
     <span class="irow skl"><em class="u">▲ ${SK[f.up].name}</em>${SK[f.up].desc}</span>
     <span class="irow sp line" style="transition-delay:.5s">★ ${K.spFull(sp)}</span>
-    <span class="irow spd skl">${sp.desc}</span>`;   // 下がり技 → 上がり技 → 必殺 の順
+    <span class="irow spd skl">威力${Math.round(K.specialDamage(f, 0))}。${sp.desc}</span>`;   // 下がり技 → 上がり技 → 必殺 の順
 }
 async function introSequence() {
   introSkip = false;
@@ -7431,13 +7443,14 @@ function renderGrid(grid, pager, st, selId, onPick) {
 }
 const traitLine = c => '';   // 固有の内部パラメータ（削り性能など）は特性として表示しない
 function hpTrend(c) { return c.hp >= 180 ? 'とても高い' : c.hp >= 150 ? '高い' : c.hp >= 120 ? '普通' : c.hp >= 95 ? '低い' : 'とても低い'; }
+const spDmg = sp => Math.round(sp.dmg * C.dmgScale);   // 必殺の威力（気合0）
 function fighterInfoHTML(c) {
   const sp = SPC[c.special];
   return `<div class="di-head"><div class="di-epi">${c.epithet}</div><div class="di-name">${c.name}</div><div class="di-sci2"><i>${c.sci}</i></div></div>
-    <div class="di-row"><span class="di-pow"><small>戦闘力</small>${c.rating}</span><span class="di-pow sub"><small>技巧</small>${c.gikou}</span><span class="di-pow sub"><small>HP</small>${c.hp}</span></div>
+    <div class="di-row"><span class="di-pow"><small>戦闘力</small>${c.rating}</span><span class="di-pow sub"><small>技巧</small>${c.gikou}</span><span class="di-pow sub"><small>基礎HP</small>${c.hp}</span></div>
     <div class="di-row"><span class="chip2">${typeBadge(c)}${STY(c).name}</span><span class="chip2">${toothBadge(c)}${TOOTH[c.tooth]}</span></div>
     ${traitLine(c)}
-    <div class="di-sp"><small>必殺技</small><b>${sp.name}</b>${sp.ruby ? `<i>《${sp.ruby}》</i>` : ''}<span class="di-spd">${sp.desc}</span></div>
+    <div class="di-sp"><small>必殺技</small><b>${sp.name}</b>${sp.ruby ? `<i>《${sp.ruby}》</i>` : ''}<span class="di-spd">威力${spDmg(sp)}。${sp.desc}</span></div>
     <div class="di-sci">分布　${c.range}</div>`;
 }
 
@@ -7491,7 +7504,9 @@ function renderMoves() {
   const f = mv.focus;
   if (f) {
     const sk = SK[f.id], bonus = Math.round(Math.max(0, c.gikou - sk.gikou) * C.surplusHp);
-    $('#mvDesc').innerHTML = `<b class="${f.t}">${sk.name}</b><span>${sk.desc}</span><small>必要技巧 ${sk.gikou}${bonus ? `・余剰技巧でHP+${bonus}` : ''}</small>`;
+    const tmp = K.makeFighter(c.id, f.t === 'up' ? f.id : c.pool.up[0], f.t === 'down' ? f.id : c.pool.down[0]), tb = K.toothBonus(c.tooth, f.t), role = roleOf(tmp, f.t)[0];
+    const why = `技${sk.pow}${c.basePow ? `＋体格${c.basePow}` : ''}${tb ? `＋${role}${tb}` : ''}`;
+    $('#mvDesc').innerHTML = `<b class="${f.t}">${sk.name}</b><span>${sk.desc}</span><small>必要技巧 ${sk.gikou}${bonus ? `・余剰技巧でHP+${bonus}` : ''}</small><small class="why">この虫では 攻勢${sk.pow + c.basePow + tb}（${why}）・威力${K.baseDamage(tmp, f.t)}</small>`;
   } else $('#mvDesc').innerHTML = '<span class="muted">技をタップすると、ここに効果が表示されます</span>';
   $('#mEquip').innerHTML = `<span class="eqk">総戦闘力 <b>${tp}</b></span><span class="eqk">装備</span><span class="eq down ${setup.down ? '' : 'none'}">▼ ${setup.down ? SK[setup.down].name : '未選択'}</span><span class="eq up ${setup.up ? '' : 'none'}">▲ ${setup.up ? SK[setup.up].name : '未選択'}</span>`;
   $('#mGo').disabled = !(setup.up && setup.down);
@@ -7612,6 +7627,7 @@ function renderSkillZukan() {
   $('#zInfo').innerHTML = `<div class="zk-skhead"><span class="ty ${k.type}">${k.type === 'up' ? '▲ 上がり技' : '▼ 下がり技'}</span><span class="chip">${k.tag}</span></div>
     <div class="di-name">${k.name}</div>
     <div class="zk-stats"><div><small>攻勢</small><b>${k.pow}</b></div><div><small>威力</small><b>${k.dmg}</b></div><div><small>必要技巧</small><b>${k.gikou}</b></div></div>
+    <p class="zk-note2">※ 技そのものの数値。実際の攻勢・威力は、使う虫の体格・型・内歯（得意／省エネ）で変わります。</p>
     <p class="zk-desc">${k.desc}</p>
     ${tip ? `<div class="zk-tip"><div class="hface sm" id="zkTipFace" role="img" aria-label="平田博士"></div><div class="zt-body"><b>平田博士</b>${tip.say}</div></div>
     <div class="zk-who"><span>こんな虫におすすめ</span>${tip.bug}</div>
@@ -7647,7 +7663,7 @@ function renderZukan() {
     <div class="zk-dl"><span>分布</span><b>${c.range}</b><span>戦闘力</span><b>${c.rating}（技巧 ${c.gikou}）</b><span>タイプ</span><b>${STY(c).name}・${TOOTH[c.tooth]}</b></div>
     <p class="zk-note">${c.note}</p>
     <p class="zk-con"><span>性能概要</span>${c.blurb}</p>${traitLine(c)}
-    <div class="di-sp"><small>必殺技</small><b>${sp.name}</b>${sp.ruby ? `<i>《${sp.ruby}》</i>` : ''}<span class="di-spd">${sp.desc}</span></div>`;
+    <div class="di-sp"><small>必殺技</small><b>${sp.name}</b>${sp.ruby ? `<i>《${sp.ruby}》</i>` : ''}<span class="di-spd">威力${spDmg(sp)}。${sp.desc}</span></div>`;
   viewer.show(zSel);
 }
 
@@ -7724,7 +7740,7 @@ function rulesHTML() {
   <h4>連続使用</h4>
   <p>同じ技を続けると攻勢とダメージが落ちる。攻勢は2回目 -1・3回目以降 -2、ダメージは2回目95%・3回目88%・4回目60%・5回目以降40%。反対側の技・ガード・必殺を1回挟むとリセット。</p>
   <h4>必殺</h4>
-  <p>ゲージMAXで4択目が解禁。通常技には必ず打ち勝つが、<b>ガードされるとほぼ無効</b>（${Math.round(C.specialGuardRatio * 100)}%だけ通る）。ガードは2連続で使えないので、通常技でガードを吐かせてから撃つ、撃つと見せて撃たない、という読み合いになる。撃たずに持っているだけでも相手への圧力。</p>
+  <p>ゲージMAXで4択目が解禁。通常技には必ず打ち勝つが、<b>ガードされるとほぼ無効</b>（${Math.round(C.specialGuardRatio * 100)}%だけ通る）。ガードは2連続で使えないので、通常技でガードを吐かせてから撃つ、撃つと見せて撃たない、という読み合いになる。撃たずに持っているだけでも相手への圧力。お互いに必殺を出したときは、攻勢値（必殺の攻勢＋体格＋気合）の高い方だけが決まる（同値なら競り合い）。必殺に込めた気合は攻勢値に加わり、威力も1につき${Math.round(C.specialKiaiBonus * 100)}%上がる。</p>
   <h4>操作</h4>
   <p><code>1</code>〜<code>4</code> コマンド ／ <code>Space</code> 気合決定・連打 ／ <code>Esc</code> 戻る。クリック・タップでも操作可。</p>
   </div>`;
