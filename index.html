@@ -1795,9 +1795,55 @@ const EASE = { lin: x => x, out: x => 1 - Math.pow(1 - x, 3), in: x => x * x * x
 function tw(dur, fn, ease = EASE.io) { return new Promise(res => tweens.push({ t: 0, dur: Math.max(1e-4, dur), fn, ease, res })); }
 function twPose(b, to, dur, ease = EASE.io) { const from = { ...b.pose }; return tw(dur, p => { for (const k in to) b.pose[k] = from[k] + (to[k] - from[k]) * p; }, ease); }
 const wait = s => tw(s, () => { }, EASE.lin);
-async function hitStop(ms) { timeScale = 0.02; await sleep(ms); timeScale = 1; }
-function shake(a) { shakeAmt = Math.max(shakeAmt, REDUCED ? a * 0.3 : a); }
-function flash(op = 0.7, ms = 160) { const f = $('#flash'); f.style.transition = 'none'; f.style.opacity = op; requestAnimationFrame(() => { f.style.transition = `opacity ${ms}ms`; f.style.opacity = 0; }); }
+/* ---- ケレン味の共通部品：止める → 強調する → すぐ解放する ----
+   強さの目安表（小・中・大・必殺の決め・撃破）。stop＝ヒットストップ(ms)、sh＝揺れ、fl＝フラッシュ、fov＝画角パンチ、
+   rumble＝遅れて届く低い揺れ、impact＝白1コマ＋色反転1コマ、tsuke＝拍子木の「カン」の打数 */
+const TIER = {
+  s:   { stop: 130, sh: 0.4, fl: 0.2 },
+  m:   { stop: 200, sh: 0.7, fl: 0.3, fov: 0.03 },
+  l:   { stop: 260, sh: 1.0, fl: 0.4, fov: 0.06, rumble: 0.4 },
+  fin: { stop: 420, sh: 1.4, fl: 0.5, fov: 0.10, rumble: 0.8, impact: 'wi', tsuke: 1 },
+  ko:  { stop: 800, sh: 2.0, fl: 0.6, fov: 0.14, rumble: 1.2, impact: 'wi', tsuke: 2 },
+};
+// 画面の揺れ・点滅を弱める（設定、または端末の「視差効果を減らす」）
+let FX_LOW = REDUCED; try { if (localStorage.getItem('kdt-fxlow') === '1') FX_LOW = true; } catch (e) { }
+let lowAmt = 0;                       // 遅れて届く低い揺れ（巨大感）
+let trem = null, lastHitTo = null;    // ヒットストップ中の震え（受けた側を大きく、攻撃側を小さく）
+let koPending = false;                // とどめが入った：次のヒットストップを撃破ストップにする
+let komaN = 0, komaAcc = 0, komaF = 0; // コマ打ち（虫の動きだけ n フレームに1回更新。粒子・カメラは毎フレーム）
+let camBaseFov = 40;
+const fovP = { k: 0, t: 9 }, fovZ = { from: 1, to: 1, t: 0, dur: 0 };
+async function hitStop(ms) {
+  if (koPending) { koPending = false; ms = Math.max(ms, TIER.ko.stop); koFx(); }   // 撃破ストップ
+  const v = lastHitTo != null && beetles[lastHitTo], a = v && beetles[1 - lastHitTo];
+  trem = v ? { v, a, t: 0, dur: Math.max(0.05, ms / 1000), amp: Math.min(0.07, 0.01 + ms * 0.00007) * v.s, air: v.pose.lift > 0.15 * v.s } : null;
+  timeScale = 0.02; await sleep(ms); timeScale = 1; trem = null; lastHitTo = null;
+}
+function shake(a) { shakeAmt = Math.max(shakeAmt, FX_LOW ? a * 0.3 : a); }
+function rumble(a, delay = 0) { const go = () => { lowAmt = Math.max(lowAmt, FX_LOW ? a * 0.3 : a); }; if (delay > 0) setTimeout(go, delay); else go(); }   // 震源から遅れて届く重い揺れ
+function fovPunch(k) { fovP.k = FX_LOW ? k * 0.4 : k; fovP.t = 0; }   // 一瞬広角にしてバネで戻す（手前が大きく見える）
+function fovZoom(to, dur) { fovZ.from = fovZ.from + (fovZ.to - fovZ.from) * Math.min(1, fovZ.dur ? fovZ.t / fovZ.dur : 1); fovZ.to = to; fovZ.t = 0; fovZ.dur = Math.max(1e-3, dur); }   // じわじわ寄る（to＝画角の倍率、1で元）
+function fovReset() { fovP.k = 0; fovZ.from = fovZ.to = 1; fovZ.t = fovZ.dur = 0; }
+function flash(op = 0.7, ms = 160) { const f = $('#flash'); if (FX_LOW) op *= 0.5; f.style.transition = 'none'; f.style.opacity = op; requestAnimationFrame(() => { f.style.transition = `opacity ${ms}ms`; f.style.opacity = 0; }); }
+// インパクトフレーム：白1コマ → 色反転1コマ → 戻す。mode：'wi'（白＋反転）/ 'w'（白だけ）/ 'paper'（紙の白）。続けて点滅させない
+let lastImpact = 0;
+function impactFrame(mode = 'wi') {
+  const now = performance.now();
+  if (FX_LOW || now - lastImpact < 300) { flash(0.45, 220); return; }
+  lastImpact = now;
+  const f = $('#flash'), cv = renderer.domElement;
+  f.style.transition = 'none'; f.style.background = mode === 'paper' ? '#f2e8d0' : '#fff'; f.style.opacity = 1;
+  requestAnimationFrame(() => {
+    f.style.opacity = 0; if (mode === 'wi') cv.style.filter = 'invert(1)';
+    requestAnimationFrame(() => { cv.style.filter = ''; f.style.background = ''; });
+  });
+}
+function koFx() { impactFrame('wi'); fovPunch(TIER.ko.fov); rumble(TIER.ko.rumble, 60); shake(TIER.ko.sh); SE.tsuke(); setTimeout(() => SE.tsuke(0.8), 140); }
+// スピードランプ：timeScale を ms かけて to へ（入りは ease-out）。解除は timeScale = 1 で即座に
+function rampTime(to, ms = 90) {
+  const from = timeScale, t0 = performance.now();
+  return new Promise(res => { const st = () => { const p = Math.min(1, (performance.now() - t0) / ms); timeScale = from + (to - from) * (1 - Math.pow(1 - p, 3)); if (p < 1) requestAnimationFrame(st); else res(); }; st(); });
+}
 function shade(v) { $('#shade').style.opacity = v; }
 function speedLines(on) { $('#speed').style.opacity = on ? 1 : 0; }
 
@@ -1929,14 +1975,23 @@ function updateCamera(dt) {
   gp.y = Math.max(gp.y, 0.12);
   if (camS.cut) { camS.cut = false; camS.pos.copy(gp); camS.look.copy(goal[1]); }   // カット：補間せず瞬時に切り替える
   else { const a = 1 - Math.exp(-dt * camS.k); camS.pos.lerp(gp, a); camS.look.lerp(goal[1], a); }
-  shakeAmt *= Math.pow(0.004, dt);
-  const s = shakeAmt;
-  camera.position.set(camS.pos.x + (Math.random() - .5) * s * 0.3, camS.pos.y + (Math.random() - .5) * s * 0.3, camS.pos.z + (Math.random() - .5) * s * 0.3);
+  shakeAmt *= Math.pow(0.006, dt); lowAmt *= Math.pow(0.12, dt);
+  // 揺れの量は2乗で効かせる（小さな揺れは控えめ、大きな揺れはぐっと強く）。軸ごとに別の滑らかな波を重ね、傾き（ロール）も入れる
+  const s = shakeAmt, a = s <= 1 ? s * s : s, L = lowAmt, tt = camS.time;
+  const nz = (f, sd) => Math.sin(tt * f + sd) * 0.55 + Math.sin(tt * f * 1.73 + sd * 2.1) * 0.3 + Math.sin(tt * f * 2.91 + sd * 3.7) * 0.15;
+  camera.position.set(camS.pos.x + nz(23, 1) * a * 0.15 + nz(5, 40) * L * 0.03, camS.pos.y + nz(21, 5) * a * 0.15 + nz(7, 9) * L * 0.12, camS.pos.z + nz(19, 13) * a * 0.15);
   if (camKick.t >= 0) {   // 押し返すように一度だけ揺れて、約0.2秒で収まる
     camKick.t += dt; const u = camKick.t / 0.2;
     if (u >= 1) camKick.t = -1; else camera.position.addScaledVector(camKick.dir || _kv.subVectors(camS.pos, camS.look).normalize(), camKick.amp * Math.sin(u * Math.PI * 1.5) * Math.exp(-u * 4));
   }
   camera.lookAt(camS.look);
+  if (a > 0.002 || L > 0.002) camera.rotateZ(nz(17, 21) * a * 0.03 + nz(6, 30) * L * 0.012);
+  // 画角：パンチ（一瞬広げてバネで戻す）とズーム（じわじわ寄る）
+  fovP.t += dt; fovZ.t += dt;
+  const pk = fovP.k ? fovP.k * Math.exp(-fovP.t * 7) * Math.cos(fovP.t * 11) : 0; if (fovP.k && fovP.t > 1) fovP.k = 0;
+  const zk = fovZ.from + (fovZ.to - fovZ.from) * EASE.io(Math.min(1, fovZ.dur ? fovZ.t / fovZ.dur : 1));
+  const fv = camBaseFov * (1 + pk) * zk;
+  if (Math.abs(camera.fov - fv) > 1e-4) { camera.fov = fv; camera.updateProjectionMatrix(); }
 }
 
 // ---- main loop
@@ -2033,7 +2088,7 @@ const tutModels = (() => {
     setShot(() => {
       const R = L * 1.75 + 1, look = new V3(0, L * 0.1, 0), p = new V3(Math.sin(CAM_A) * R, L * 1.05 + 0.5, Math.cos(CAM_A) * R);
       const D = p.distanceTo(look), fwd = look.clone().sub(p).normalize(), right = fwd.clone().cross(new V3(0, 1, 0)).normalize(), up = right.clone().cross(fwd);
-      const tv = Math.tan(camera.fov * Math.PI / 360), sx = 0.3 * tv * camera.aspect * D, sy = 0.4 * tv * D;   // 注視点をずらして虫を画面の右上（選択肢の上の空き）へ
+      const tv = Math.tan(camBaseFov * Math.PI / 360), sx = 0.3 * tv * camera.aspect * D, sy = 0.4 * tv * D;   // 注視点をずらして虫を画面の右上（選択肢の上の空き）へ
       const sh = look.clone().addScaledVector(right, -sx).addScaledVector(up, -sy);
       const pp = p.clone().addScaledVector(right, -sx).addScaledVector(up, -sy);
       return [sh.clone().addScaledVector(pp.sub(sh), 1 / camZoom), sh];
@@ -2185,7 +2240,7 @@ function layoutMode() {
   app.style.width = rot || k < 1 ? APP_W + 'px' : ''; app.style.height = rot || k < 1 ? APP_H + 'px' : '';
   app.style.transform = k < 1 ? (rot ? `translateX(100vw) rotate(90deg) scale(${k})` : `scale(${k})`) : '';
 }
-function resize() { layoutMode(); const w = APP_W, h = APP_H; renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 58 : 40; camera.updateProjectionMatrix(); }
+function resize() { layoutMode(); const w = APP_W, h = APP_H; renderer.setSize(w, h, false); camera.aspect = w / h; camBaseFov = camera.fov = w < h ? 58 : 40; camera.updateProjectionMatrix(); }
 addEventListener('orientationchange', () => setTimeout(resize, 200));
 /* スマホ：タップしたときに全画面＋横向き固定にする（対応していない端末では、縦持ちのときに画面ごと90°回して横画面で表示する） */
 const FS_OK = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
@@ -2206,7 +2261,17 @@ function loop() {
     const w = tweens[i]; w.t += sdt; const p = Math.min(1, w.t / w.dur); w.fn(w.ease(p));
     if (p >= 1) { tweens.splice(i, 1); w.res(); }
   }
-  beetles.forEach(b => b.update(sdt)); ghosts.forEach(g => g.update(sdt)); holds.forEach(h => holdStep(h, sdt)); updateTrails();
+  for (const b of beetles) if (b._tro) { b.root.position.sub(b._tro); b._tro = null; }
+  if (komaN > 1) {   // コマ打ち：虫だけ n フレームに1回、まとめて進める（粒子・カメラ・花びらは毎フレーム＝生きた静止）
+    komaAcc += sdt;
+    if (++komaF % komaN === 0) { const d = komaAcc; komaAcc = 0; beetles.forEach(b => b.update(d)); ghosts.forEach(g => g.update(d)); holds.forEach(h => holdStep(h, d)); }
+  } else { beetles.forEach(b => b.update(sdt)); ghosts.forEach(g => g.update(sdt)); holds.forEach(h => holdStep(h, sdt)); }
+  updateTrails();
+  if (trem) {   // ヒットストップ中の震え：受けた側を大きく、攻撃側を小さく。地上は横、宙では縦。だんだん弱まる
+    trem.t += dt; const k = Math.max(0, 1 - trem.t / trem.dur) * (FX_LOW ? 0.4 : 1), w = Math.sin(trem.t * 95);
+    const off = (b, m) => { if (!b) return; const o = trem.air ? new V3(0, w * m, 0) : new V3(w * m, 0, 0); b.root.position.add(o); b._tro = o; };
+    off(trem.v, trem.amp * k); off(trem.a, -trem.amp * k * 0.3);
+  }
   updateFx(sdt);
   motes.rotation.y += dt * 0.01; motes.position.y = Math.sin(camS.time * 0.2) * 0.2;
   updateCamera(dt);
@@ -2242,7 +2307,10 @@ function banner(text, cls = 'gold', ms = 1000) {
   return sleep(ms * 0.8);
 }
 function applyHit(h, big = false, cls) {
+  const was = disp.hp[h.to];
   disp.hp[h.to] = Math.max(0, disp.hp[h.to] - h.dmg); renderHUD();
+  if (h.dmg > 0) lastHitTo = h.to;
+  if (was > 0 && disp.hp[h.to] <= 0) koPending = true;   // とどめ：次のヒットストップを撃破ストップに
   checkHalfBgm();
   popup(h.to, String(h.dmg), cls || (big ? 'big' : h.role === 'chip' ? 'chipd' : ''));
 }
@@ -5784,7 +5852,7 @@ async function animSpecial(i, opt) {
       // 2匹の尾端どうしの幅が画面に収まる距離を、画角から出す（体格区分のズームは打ち消す）
       const geo = () => {
         const a = A.root.position, d = D.root.position, ta = a.x - A.facing * 2.0 * A.s, td = d.x - D.facing * 2.0 * D.s;
-        const w = Math.abs(ta - td) * 1.1 + 0.6, v = camera.fov * Math.PI / 360, h = Math.atan(Math.tan(v) * camera.aspect);
+        const w = Math.abs(ta - td) * 1.1 + 0.6, v = camBaseFov * Math.PI / 360, h = Math.atan(Math.tan(v) * camera.aspect);
         return { cx: (ta + td) / 2, w, ly: Math.max(a.y, d.y), R: Math.max(w / 2 / Math.tan(h), (0.5 + Math.max(a.y, d.y)) / Math.tan(v)) / camZoom };
       };
       const shots = {
@@ -5823,6 +5891,18 @@ async function animSpecial(i, opt) {
       await twPose(D, { crouch: 1, splay: 1.3, head: -0.45, ant: -0.6, pitch: -0.08 }, 0.25, EASE.out);
     },
     duck() { if (!x.bgmDucked) { BGM.duck(true, 300); x.bgmDucked = true; } },
+    // 打つ直前の無音：BGM をほぼ消して ms 待つ。次の決めの一撃（x.hit の段階つき）か x.boom() で轟音とともに戻す
+    async hush(ms = 300) { BGM.duck(true, 120, 0.02); x.bgmDucked = true; await sleep(ms); },
+    boom() { if (x.bgmDucked) { BGM.duck(false, 500); x.bgmDucked = false; } SE.thud(); SE.hit(1.4); },
+    fov(k = 0.08) { if (SPFX) fovPunch(k); },                 // 画角パンチ
+    zoom(to = 0.85, dur = 1) { if (SPFX) fovZoom(to, dur); }, // じわじわ寄る（1 で元に戻す）
+    ramp(v = 0.25, ms = 90) { return rampTime(v, ms); },      // 打点の直前でスローへ
+    release() { timeScale = 1; },                             // スロー解除（打点で即座に）
+    koma(n = 2) { komaN = n > 1 ? n : 0; komaAcc = 0; komaF = 0; },   // コマ打ち（0 で解除）
+    impact(mode = 'wi') { if (SPFX) impactFrame(mode); },
+    rumble(a = 0.8, delay = 80) { if (SPFX) rumble(a, delay); },
+    // 拍子木の「カン」：n 打。accel を付けると、打つたびに間が詰まっていく
+    tsuke(n = 1, gap = 130, accel = 1) { let t = 0, g = gap; for (let i = 0; i < n; i++) { setTimeout(() => SE.tsuke(), t); t += g; g *= accel; } },
     unduck() { if (x.bgmDucked) { BGM.duck(false, 600); x.bgmDucked = false; } },
     every(ms, fn) { const id = setInterval(fn, ms); x.ivs.push(id); return id; },
     stopEvery(id) { clearInterval(id); },
@@ -5854,6 +5934,16 @@ async function animSpecial(i, opt) {
       await twPose(D, { crouch: 1, splay: 1.3, head: -0.4, ant: -0.6, sq: 0.92 }, 0.15, EASE.out);
     },
     async hit(k, f = {}) {
+      // 段階（TIER）：f.tier で指定。指定がなければ、最後の一撃は自動で「必殺の決め」の演出を足す（数値は技ごとの指定を優先）
+      const tn = f.tier || (!x.guarded && !f.noFin && parts.length && k === parts.length - 1 ? 'fin' : null), T = tn ? TIER[tn] : null;
+      if (T && f.tier) f = { stop: T.stop, sh: T.sh, fl: T.fl, ...f };
+      const lethal = parts[k] && !x.done.has(k) && disp.hp[parts[k].to] > 0 && disp.hp[parts[k].to] - parts[k].dmg <= 0;   // とどめなら撃破ストップに任せる
+      if (x.bgmDucked && (T || lethal)) x.boom();   // 無音 → 轟音
+      if (T && !x.guarded && !lethal) {
+        if (T.impact) impactFrame(f.impact || T.impact);
+        if (T.fov) fovPunch(T.fov); if (T.rumble) rumble(T.rumble, 70);
+        if (T.tsuke) x.tsuke(T.tsuke);
+      }
       const c = f.at || contactPt(), pw = f.pw || 1;
       if (x.guarded) impactFx(c, 0.8, 'guard'); else impactFx(c, Math.min(1.8, pw));
       burstSparks(c, Math.round((f.n || 20) * (x.guarded ? 0.5 : 1)), x.guarded ? 0x9fd0ff : (f.col || 0xffd58a), (f.sp || 1) * Math.min(1.6, pw));
@@ -5886,6 +5976,7 @@ async function animSpecial(i, opt) {
     if (fn) { await fn(x); if (x.done.size) parts.forEach((h, k) => { if (!x.done.has(k)) applyHit(h); }); }   // 演出の途中で入らなかった分も必ず入れる
     else { await twPose(A, PZ.rear(1), 0.3); await twPose(A, PZ.lunge(), 0.08, EASE.in); await x.hit(0, { pw: 1.8, big: true, stop: 220 }); await x.react('push', 1); }
   } finally {
+    komaN = 0; fovZoom(1, 0.3); koPending = false;
     speedLines(false); timeScale = 1; clearGhosts(); clearHolds(); if (activeSil) silhouetteOff(activeSil);
     if (x.bgmDucked) { BGM.duck(false, 400); x.bgmDucked = false; }
     if (x.fogD != null) { scene.fog.density = x.fogD; x.fogD = null; }
@@ -6421,7 +6512,7 @@ const BGM = (() => {
     fade(t, VOL * duckK, 900);
   }
   let duckK = 1;
-  function duck(d, ms = 600) { duckK = d ? 0.12 : 1; if (!d && cur && cur !== want) { apply(); return; } if (cur && tr[cur] && !tr[cur].a.paused) fade(tr[cur], VOL * duckK, ms); }
+  function duck(d, ms = 600, lvl = 0.12) { duckK = d ? lvl : 1; if (!d && cur && cur !== want) { apply(); return; } if (cur && tr[cur] && !tr[cur].a.paused) fade(tr[cur], VOL * duckK, ms); }
   function play(k) { if (want === k) return; want = k; apply(); }
   function unlock() { hook(); if (unlocked) { kick(); return; } unlocked = true; apply(); }
   function kick() { if (on && unlocked && !hidden && cur && tr[cur].a.paused) apply(); }   // 復帰後に止まったままなら、次のタップで鳴らし直す
@@ -6509,6 +6600,13 @@ const SE = (() => {
     step() { if (!ok()) return; const t = ctx.currentTime; tone(t, 'sine', 85, 40, 0.3, 0.14); noise(t, 'lowpass', 320, 1, 0.22, 0.08); },
     land() { if (!ok()) return; const t = ctx.currentTime; tone(t, 'sine', 120, 55, 0.45, 0.12); noise(t, 'bandpass', 1200, 2, 0.3, 0.06); },
     whoosh() { if (!ok()) return; noise(ctx.currentTime, 'bandpass', 500, 1.5, 0.22, 0.16, 2600); },
+    tsuke(p = 1) {   // 拍子木の「カン」：乾いた木の一打（響きは少しだけ残す）
+      if (!ok()) return; const t = ctx.currentTime;
+      noise(t, 'bandpass', R(3000, 3400), 7, 0.75 * p, 0.022, null, fbus);
+      tone(t, 'triangle', R(1180, 1260), null, 0.5 * p, 0.075, fbus, 0.001);
+      tone(t, 'sine', R(2550, 2700), null, 0.22 * p, 0.05, fbus, 0.001);
+      tone(t, 'sine', 420, 300, 0.12 * p, 0.04, master, 0.001);
+    },
     charge() { if (!ok()) return; const t = ctx.currentTime; noise(t, 'bandpass', 300, 3, 0.25, 0.5, 3200); tone(t, 'sawtooth', 110, 440, 0.08, 0.5); },
     tick(k = 0) { if (!ok()) return; tone(ctx.currentTime, 'square', 1500 + k * 140, null, 0.05, 0.03); },
     kiai() { if (!ok()) return; const t = ctx.currentTime; tone(t, 'triangle', 520, 1250, 0.22, 0.14); noise(t, 'bandpass', 1800, 2, 0.2, 0.08); },
@@ -6586,7 +6684,7 @@ async function startMatch(rematch) {
 }
 async function startMatchBody(rematch, my) {
   if (input) input.cancel();
-  pendingAbort = false;
+  pendingAbort = false; koPending = false;
   const other = online ? netStart.ch : tutCtx ? tutCtx.opp : rematch && lastOpp ? lastOpp : pickOpponent();
   lastOpp = other;
   cpuLoad = online ? { up: netStart.up, down: netStart.down } : tutCtx ? (tutCtx.exam ? K.cpuLoadout(other) : { up: 'tekkeKachiage', down: 'oshitsubushi' }) : rematch && cpuLoad && st && st.f[1].charId === other ? cpuLoad : K.cpuLoadout(other);
@@ -7671,11 +7769,14 @@ function renderZukan() {
 function openSettings() {
   openModal(`<h2>設定</h2><div class="settings">
     <div class="srow"><span>BGM</span><div class="seg big" id="sBgm"><button type="button" data-v="1">ON</button><button type="button" data-v="0">OFF</button></div></div>
-    <div class="srow"><span>効果音（SE）</span><div class="seg big" id="sSe"><button type="button" data-v="1">ON</button><button type="button" data-v="0">OFF</button></div></div></div>`);
+    <div class="srow"><span>効果音（SE）</span><div class="seg big" id="sSe"><button type="button" data-v="1">ON</button><button type="button" data-v="0">OFF</button></div></div>
+    <div class="srow"><span>画面の揺れ・点滅</span><div class="seg big" id="sFx"><button type="button" data-v="0">標準</button><button type="button" data-v="1">弱める</button></div></div></div>`);
   const sync = () => {
     $('#sBgm').querySelectorAll('button').forEach(b => b.classList.toggle('sel', (b.dataset.v === '1') === BGM.on));
     $('#sSe').querySelectorAll('button').forEach(b => b.classList.toggle('sel', (b.dataset.v === '1') === SE.on));
+    $('#sFx').querySelectorAll('button').forEach(b => b.classList.toggle('sel', (b.dataset.v === '1') === FX_LOW));
   };
+  $('#sFx').querySelectorAll('button').forEach(b => b.onclick = () => { FX_LOW = b.dataset.v === '1' || REDUCED; try { localStorage.setItem('kdt-fxlow', b.dataset.v); } catch (e) { } sync(); });
   $('#sBgm').querySelectorAll('button').forEach(b => b.onclick = () => { if ((b.dataset.v === '1') !== BGM.on) { BGM.toggle(); syncBgmBtn(); } sync(); });
   $('#sSe').querySelectorAll('button').forEach(b => b.onclick = () => { if ((b.dataset.v === '1') !== SE.on) { SE.toggle(); syncSeBtn(); } sync(); });
   sync();
