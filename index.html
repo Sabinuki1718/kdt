@@ -304,6 +304,14 @@ body.lp #decl .dstep { display: none; }
 .tugl { display: flex; justify-content: space-between; font-family: var(--f-num); font-size: 14px; }
 .mashbtn { cursor: pointer; font-family: var(--f-disp); font-weight: 900; font-size: 26px; padding: 14px; background: linear-gradient(#ffe38a, #c28a22); color: #1c1305; border: 2px solid #fff1c2; }
 .mashbtn:active { transform: scale(.97); }
+/* 通信対戦の競り合い：相手の連打数は最後まで分からないので、途中は勝ち負けを見せない → 待機 → 結果発表 */
+#mash.net .tug i { opacity: 0; transition: opacity .2s; }
+#mash.net.rev .tug i { opacity: 1; }
+#mash.net .tug::after { content: '相手の連打数は最後に発表'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #d8c9a0; letter-spacing: .08em; }
+#mash.net.rev .tug::after { content: none; }
+#mash.wait .mashbtn { filter: grayscale(.85) brightness(.6); pointer-events: none; }
+#mash.wait h3::after { content: ''; animation: mashDots 1.2s steps(4) infinite; }
+@keyframes mashDots { 0% { content: ''; } 25% { content: '・'; } 50% { content: '・・'; } 75% { content: '・・・'; } }
 .tbar { position: relative; height: 30px; background: #121314; border: 1px solid var(--steel); overflow: hidden; }
 .tbar .zone { position: absolute; top: 0; bottom: 0; background: linear-gradient(#ffe8a0, #c99a3e); opacity: .85; }
 .tbar .cur { position: absolute; top: 0; bottom: 0; width: 4px; margin-left: -2px; background: #fff; box-shadow: 0 0 10px #fff; }
@@ -6336,6 +6344,9 @@ async function revealActs(acts, an) {
 function mashGame(acts) {
   return new Promise(resolve => {
     const el = $('#mash'); el.hidden = false;
+    el.classList.toggle('net', !!online); el.classList.remove('rev', 'wait');   // 通信対戦：途中は勝ち負けを見せない
+    el.querySelector('h3').textContent = '競り合い！';
+    $('#mashBtn').innerHTML = '連打！<span class="kh"> [Space]</span>';
     let p = 0, c = 0, done = false, cTaps = 0, final = false;   // p, c は表示用（加護の重み込み）。決着は連打数（taps / cTaps）を K.mashWinner に渡して決める
     const w0 = K.mashWeight(st.f[0]), w1 = K.mashWeight(st.f[1]);   // 金蚉の加護
     const rate = C.cpuMashRate[0] + Math.random() * (C.cpuMashRate[1] - C.cpuMashRate[0]);
@@ -6343,7 +6354,13 @@ function mashGame(acts) {
     setShot(t => { const cp = contactPt(); return [V(cp.x + Math.sin(t * 3) * 0.2, 0.4, 3.8), V(cp.x, 0.4, 0)]; }, 8);
     banner('競り合い！', 'gold', 900);
     const draw = () => {
-      $('#mashP').textContent = `あなた ${Math.floor(p)}`; $('#mashC').textContent = online && !final ? '相手 ?' : `${OPP()} ${Math.floor(c)}`;
+      $('#mashP').textContent = `あなた ${Math.floor(p)}`; $('#mashC').textContent = online && !final ? '相手 ？' : `${OPP()} ${Math.floor(c)}`;
+      if (online && !final) {   // 相手の数が分からないうちは、互角に押し合う姿だけ見せる
+        const j = Math.sin(gameNow() / 45) * 0.05; $('#tugI').style.left = '50%';
+        beetles[0].pose.off = 0.1 + j; beetles[1].pose.off = 0.1 + j;
+        beetles.forEach(b => { b.pose.crouch = 1; b.pose.jaw = 0.05; });
+        return;
+      }
       const bal = (p - c) / (p + c + 6);
       $('#tugI').style.left = (50 + bal * 50) + '%';
       beetles[0].pose.off = 0.1 + bal * 0.35; beetles[1].pose.off = 0.1 - bal * 0.35;
@@ -6352,11 +6369,13 @@ function mashGame(acts) {
     let taps = 0;
     const tap = () => { if (done) return; p += w0; taps++; draw(); SE.tap(); if (taps % 3 === 0) burstChips(contactPt(), 2, 0.5); };
     mashTap = tap;
-    mashAbort = () => { done = true; mashTap = null; mashAbort = null; el.hidden = true; resolve(-1); };
+    let gone = false;
+    mashAbort = () => { gone = true; done = true; mashTap = null; mashAbort = null; el.hidden = true; resolve(-1); };
     const tick = () => {
       const now = gameNow(), el2 = (now - t0) / 1000;
       if (!online && Math.random() < rate * (now - last) / 1000 * (0.7 + Math.random() * 0.6)) { c += w1; cTaps++; draw(); }
       last = now; shake(0.12);
+      if (online && !done) draw();
       $('#mashT').textContent = Math.max(0, C.mashTime - el2).toFixed(1);
       if (Math.random() < 0.2) burstDust(new V3(beetles[Math.random() < 0.5 ? 0 : 1].root.position.x, 0, 0.4), 1, 0.6);
       if (done) return;
@@ -6364,14 +6383,30 @@ function mashGame(acts) {
         done = true; mashTap = null;
         if (online) {   // 連打数を送り、サーバーが決めた勝者を出す
           net.send({ t: 'taps', turn: st.turn, n: taps }); netWaitSince = performance.now();
-          net.wait('res').then(res => {
-            mashRes = res; mashAbort = null; netWaitSince = -1;
-            if (!res) { el.hidden = true; resolve(-1); return; }
+          el.classList.add('wait'); el.querySelector('h3').textContent = '通信待機中';   // ① 連打終了 → ② 相手の結果を待つ
+          $('#mashBtn').textContent = `あなたの連打 ${taps} 回　相手を待っています`;
+          beetles.forEach(b => { b.pose.off = 0.1; });
+          net.wait('res').then(async res => {
+            if (gone) return;   // 待機中に試合を抜けた
+            mashRes = res; netWaitSince = -1;
+            if (!res) { mashAbort = null; el.hidden = true; resolve(-1); return; }
             const w = res.mw.winner, why = { mash: '', kiai: '連打は互角 → 気合の多い側', power: '連打・気合とも互角 → 総戦闘力の高い側', random: 'すべて互角 → 抽選' }[res.mw.by];
-            if (res.taps) { cTaps = res.taps[1]; c = cTaps * w1; p = taps * w0; final = true; draw(); }
-            banner(w === 0 ? '競り勝った！' : '競り負けた…', w === 0 ? 'gold' : 'red', why ? 1300 : 800);
+            // ③ 結果発表：相手の数をカウントアップしながら、押し合いの位置を動かす
+            el.classList.remove('wait'); el.classList.add('rev'); el.querySelector('h3').textContent = '結果発表';
+            $('#mashBtn').textContent = '…';
+            const tc = res.taps ? res.taps[1] : 0, me = res.taps ? res.taps[0] : taps; final = true; p = me * w0;
+            const dur = 900, r0 = performance.now();
+            await new Promise(ok => { const f = () => { const k = Math.min(1, (performance.now() - r0) / dur), n = Math.round(tc * (1 - (1 - k) ** 2));
+              if (n !== cTaps) { cTaps = n; c = n * w1; if (n % 2 === 0) SE.tap(); }
+              draw(); k < 1 ? requestAnimationFrame(f) : ok(); }; f(); });
+            if (gone) return;   // 発表中に試合を抜けた
+            mashAbort = null;
+            cTaps = tc; c = tc * w1; draw();
+            $('#mashBtn').textContent = w === 0 ? '競り勝ち！' : '競り負け…';
+            shake(0.6); burstChips(contactPt(), 8, 0.9);
+            banner(w === 0 ? '競り勝った！' : '競り負けた…', w === 0 ? 'gold' : 'red', why ? 1300 : 900);
             if (why) wipe(w, why, false);
-            setTimeout(() => { el.hidden = true; resolve(w); }, 650);
+            setTimeout(() => { el.hidden = true; resolve(w); }, 1000);
           });
           return;
         }
